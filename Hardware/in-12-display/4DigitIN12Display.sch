@@ -1,0 +1,864 @@
+EESchema Schematic File Version 2
+LIBS:4DigitIN12-cache
+LIBS:4DigitIN12-rescue
+LIBS:74xgxx
+LIBS:74xx
+LIBS:ac-dc
+LIBS:actel
+LIBS:adc-dac
+LIBS:allegro
+LIBS:Altera
+LIBS:analog_devices
+LIBS:analog_switches
+LIBS:atmel
+LIBS:audio
+LIBS:battery_management
+LIBS:bbd
+LIBS:bosch
+LIBS:brooktre
+LIBS:cmos_ieee
+LIBS:cmos4000
+LIBS:conn
+LIBS:contrib
+LIBS:cypress
+LIBS:dc-dc
+LIBS:device
+LIBS:digital-audio
+LIBS:diode
+LIBS:display
+LIBS:dsp
+LIBS:elec-unifil
+LIBS:ESD_Protection
+LIBS:ftdi
+LIBS:gennum
+LIBS:graphic_symbols
+LIBS:hc11
+LIBS:infineon
+LIBS:intel
+LIBS:interface
+LIBS:intersil
+LIBS:ir
+LIBS:Lattice
+LIBS:leds
+LIBS:LEM
+LIBS:linear
+LIBS:logic_programmable
+LIBS:maxim
+LIBS:mechanical
+LIBS:memory
+LIBS:microchip
+LIBS:microchip_dspic33dsc
+LIBS:microchip_pic10mcu
+LIBS:microchip_pic12mcu
+LIBS:microchip_pic16mcu
+LIBS:microchip_pic18mcu
+LIBS:microchip_pic24mcu
+LIBS:microchip_pic32mcu
+LIBS:microcontrollers
+LIBS:modules
+LIBS:motor_drivers
+LIBS:motorola
+LIBS:motors
+LIBS:msp430
+LIBS:nordicsemi
+LIBS:nxp
+LIBS:nxp_armmcu
+LIBS:onsemi
+LIBS:opto
+LIBS:Oscillators
+LIBS:philips
+LIBS:power
+LIBS:Power_Management
+LIBS:powerint
+LIBS:pspice
+LIBS:references
+LIBS:regul
+LIBS:relays
+LIBS:rfcom
+LIBS:RFSolutions
+LIBS:sensors
+LIBS:silabs
+LIBS:siliconi
+LIBS:stm8
+LIBS:stm32
+LIBS:supertex
+LIBS:switches
+LIBS:texas
+LIBS:transf
+LIBS:transistors
+LIBS:triac_thyristor
+LIBS:ttl_ieee
+LIBS:valves
+LIBS:video
+LIBS:wiznet
+LIBS:Worldsemi
+LIBS:Xicor
+LIBS:xilinx
+LIBS:zetex
+LIBS:Zilog
+LIBS:4DigitIN12Display-cache
+EELAYER 25 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 1 1
+Title "4 Digit IN12 CLock Display Board"
+Date "2018-10-28"
+Rev ""
+Comp "Ian Sparkes Nixie Clocks"
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+Text Notes 950  900  0    70   ~ 0
+Anode Control
+$Comp
+L PC817 OK4
+U 1 1 5696C7B0
+P 2250 3400
+F 0 "OK4" H 1975 3625 70  0000 L BNN
+F 1 "EL817C" H 1975 3100 70  0000 L BNN
+F 2 "NixieClockMaster:optocoupler-DIL04" H 2240 3190 70  0001 L TNN
+F 3 "" H 2250 3400 60  0001 C CNN
+F 4 "Value" H 2250 3400 60  0001 C CNN "Fieldname"
+	1    2250 3400
+	1    0    0    -1  
+$EndComp
+$Comp
+L PC817 OK3
+U 1 1 5696C878
+P 2250 2700
+F 0 "OK3" H 1975 2925 70  0000 L BNN
+F 1 "EL817C" H 1975 2400 70  0000 L BNN
+F 2 "NixieClockMaster:optocoupler-DIL04" H 2240 2490 70  0001 L TNN
+F 3 "" H 2250 2700 60  0001 C CNN
+F 4 "Value" H 2250 2700 60  0001 C CNN "Fieldname"
+	1    2250 2700
+	1    0    0    -1  
+$EndComp
+$Comp
+L PC817 OK2
+U 1 1 5696C940
+P 2250 2000
+F 0 "OK2" H 1975 2225 70  0000 L BNN
+F 1 "EL817C" H 1975 1700 70  0000 L BNN
+F 2 "NixieClockMaster:optocoupler-DIL04" H 2240 1790 70  0001 L TNN
+F 3 "" H 2250 2000 60  0001 C CNN
+F 4 "Value" H 2250 2000 60  0001 C CNN "Fieldname"
+	1    2250 2000
+	1    0    0    -1  
+$EndComp
+$Comp
+L PC817 OK1
+U 1 1 5696CA08
+P 2250 1300
+F 0 "OK1" H 1975 1525 70  0000 L BNN
+F 1 "EL817C" H 1975 1000 70  0000 L BNN
+F 2 "NixieClockMaster:optocoupler-DIL04" H 2240 1090 70  0001 L TNN
+F 3 "" H 2250 1300 60  0001 C CNN
+F 4 "Value" H 2250 1300 60  0001 C CNN "Fieldname"
+	1    2250 1300
+	1    0    0    -1  
+$EndComp
+$Comp
+L BF458 Q1
+U 1 1 5696D048
+P 5300 2250
+F 0 "Q1" H 5200 2000 70  0000 L BNN
+F 1 "MPSA42" H 4900 2400 70  0000 L BNN
+F 2 "NixieClockMaster:2N7000_TO92" H 5290 2040 70  0001 L TNN
+F 3 "" H 5300 2250 60  0001 C CNN
+F 4 "D" H 5400 2274 60  0000 L BNN "Field5"
+F 5 "S" H 5399 2075 60  0000 L BNN "Field6"
+F 6 "G" H 5125 2075 60  0001 L BNN "Field7"
+	1    5300 2250
+	1    0    0    -1  
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R2
+U 1 1 5696D110
+P 1600 1900
+F 0 "R2" H 1450 1958 70  0000 L BNN
+F 1 "1k" H 1450 1770 70  0000 L BNN
+F 2 "NixieClockMaster:R_1206_HandSoldering" H 1590 1690 70  0001 L TNN
+F 3 "" H 1600 1900 60  0001 C CNN
+	1    1600 1900
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R3
+U 1 1 5696D1D8
+P 1600 2600
+F 0 "R3" H 1450 2658 70  0000 L BNN
+F 1 "1k" H 1450 2470 70  0000 L BNN
+F 2 "NixieClockMaster:R_1206_HandSoldering" H 1590 2390 70  0001 L TNN
+F 3 "" H 1600 2600 60  0001 C CNN
+	1    1600 2600
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R4
+U 1 1 5696D2A0
+P 1600 3300
+F 0 "R4" H 1450 3358 70  0000 L BNN
+F 1 "1k" H 1450 3170 70  0000 L BNN
+F 2 "NixieClockMaster:R_1206_HandSoldering" H 1590 3090 70  0001 L TNN
+F 3 "" H 1600 3300 60  0001 C CNN
+	1    1600 3300
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R6
+U 1 1 5696D368
+P 2900 2100
+F 0 "R6" H 2750 2158 70  0000 L BNN
+F 1 "3k" H 2750 1970 70  0000 L BNN
+F 2 "NixieClockMaster:R_1206_HandSoldering" H 2890 1890 70  0001 L TNN
+F 3 "" H 2900 2100 60  0001 C CNN
+	1    2900 2100
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R7
+U 1 1 5696D430
+P 2900 2800
+F 0 "R7" H 2750 2858 70  0000 L BNN
+F 1 "3k" H 2750 2670 70  0000 L BNN
+F 2 "NixieClockMaster:R_1206_HandSoldering" H 2890 2590 70  0001 L TNN
+F 3 "" H 2900 2800 60  0001 C CNN
+	1    2900 2800
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R8
+U 1 1 5696D4F8
+P 2900 3500
+F 0 "R8" H 2750 3558 70  0000 L BNN
+F 1 "3k" H 2750 3370 70  0000 L BNN
+F 2 "NixieClockMaster:R_1206_HandSoldering" H 2890 3290 70  0001 L TNN
+F 3 "" H 2900 3500 60  0001 C CNN
+	1    2900 3500
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R1
+U 1 1 5696DB38
+P 1600 1200
+F 0 "R1" H 1450 1258 70  0000 L BNN
+F 1 "1k" H 1450 1070 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 1590 990 70  0001 L TNN
+F 3 "" H 1600 1200 60  0001 C CNN
+	1    1600 1200
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R5
+U 1 1 5696DD90
+P 2900 1400
+F 0 "R5" H 2750 1458 70  0000 L BNN
+F 1 "3k" H 2750 1270 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 2890 1190 70  0001 L TNN
+F 3 "" H 2900 1400 60  0001 C CNN
+	1    2900 1400
+	-1   0    0    1   
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R10
+U 1 1 5696DF20
+P 5400 1800
+F 0 "R10" H 5250 1858 70  0000 L BNN
+F 1 "1k" H 5250 1670 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 5390 1590 70  0001 L TNN
+F 3 "" H 5400 1800 60  0001 C CNN
+	1    5400 1800
+	0    -1   -1   0   
+$EndComp
+Text Label 900  1200 0    65   ~ 0
+A1_I
+Text Label 900  1900 0    65   ~ 0
+A2_I
+Text Label 900  2600 0    65   ~ 0
+A3_I
+Text Label 900  3300 0    65   ~ 0
+A4_I
+Text Label 1400 3300 2    20   ~ 0
+ANODE1
+Text Label 1400 2600 2    20   ~ 0
+ANODE2
+Text Label 1400 1900 2    20   ~ 0
+ANODE3
+Text Label 1400 1200 2    20   ~ 0
+ANODE4
+Text Label 1800 1400 0    20   ~ 0
+GND
+Text Label 1800 2100 0    20   ~ 0
+gnd
+Text Label 1800 2800 0    20   ~ 0
+GND
+Text Label 1800 3500 0    20   ~ 0
+GND
+Text Label 2750 850  0    59   ~ 0
+170V_I
+Text Label 2750 1800 0    59   ~ 0
+170V
+$Comp
+L IN-12B N4
+U 1 1 594AF3F6
+P 6750 5100
+F 0 "N4" H 6575 5925 50  0000 L BNN
+F 1 "IN-12B" V 6750 5100 50  0000 L BNN
+F 2 "NixieClockMaster:IN-12" H 6750 5250 50  0001 C CNN
+F 3 "" H 6750 5100 60  0001 C CNN
+	1    6750 5100
+	0    -1   -1   0   
+$EndComp
+Text Label 3450 3500 0    60   ~ 0
+A4
+Text Label 3450 2800 0    60   ~ 0
+A3
+Text Label 3450 2100 0    60   ~ 0
+A2
+Text Label 3450 1400 0    60   ~ 0
+A1
+$Comp
+L IN-12B N2
+U 1 1 594BCCCF
+P 3550 5100
+F 0 "N2" H 3375 5925 50  0000 L BNN
+F 1 "IN-12B" V 3550 5100 50  0000 L BNN
+F 2 "NixieClockMaster:IN-12" H 3550 5250 50  0001 C CNN
+F 3 "" H 3550 5100 60  0001 C CNN
+	1    3550 5100
+	0    -1   -1   0   
+$EndComp
+$Comp
+L IN-12B N3
+U 1 1 594BCE31
+P 5150 5100
+F 0 "N3" H 4975 5925 50  0000 L BNN
+F 1 "IN-12B" V 5150 5100 50  0000 L BNN
+F 2 "NixieClockMaster:IN-12" H 5150 5250 50  0001 C CNN
+F 3 "" H 5150 5100 60  0001 C CNN
+	1    5150 5100
+	0    -1   -1   0   
+$EndComp
+$Comp
+L IN-12B N1
+U 1 1 594BCF95
+P 1950 5100
+F 0 "N1" H 1775 5925 50  0000 L BNN
+F 1 "IN-12B" V 1950 5100 50  0000 L BNN
+F 2 "NixieClockMaster:IN-12" H 1950 5250 50  0001 C CNN
+F 3 "" H 1950 5100 60  0001 C CNN
+	1    1950 5100
+	0    -1   -1   0   
+$EndComp
+NoConn ~ 2600 5250
+$Comp
+L Conn_01x10 J1
+U 1 1 594DD920
+P 8900 5600
+F 0 "J1" H 8900 6050 50  0000 C CNN
+F 1 "Conn_01x10" V 8900 5600 50  0000 C CNN
+F 2 "Pin_Headers:Pin_Header_Straight_1x10_Pitch2.54mm" H 8900 4400 50  0001 C CNN
+F 3 "" H 8900 4400 50  0001 C CNN
+	1    8900 5600
+	-1   0    0    1   
+$EndComp
+Text Label 1050 5700 0    60   ~ 0
+C_1_I
+Text Label 1050 5800 0    60   ~ 0
+C_3_I
+Text Label 1050 5900 0    60   ~ 0
+C_5_I
+Text Label 1050 6000 0    60   ~ 0
+C_7_I
+Text Label 1050 6100 0    60   ~ 0
+C_9_I
+Text Label 7600 5750 2    60   ~ 0
+C_2_I
+Text Label 7600 5850 2    60   ~ 0
+C_4_I
+Text Label 7600 5950 2    60   ~ 0
+C_6_I
+Text Label 7600 6050 2    60   ~ 0
+C_8_I
+Text Label 7600 6150 2    60   ~ 0
+C_0_I
+Text Label 10600 5800 2    65   ~ 0
+T_LED1_I
+Text Label 9450 5100 2    60   ~ 0
+C_0_I
+Text Label 9450 5300 2    60   ~ 0
+C_2_I
+Text Label 9450 5500 2    60   ~ 0
+C_4_I
+Text Label 9450 5700 2    60   ~ 0
+C_6_I
+Text Label 9450 5900 2    60   ~ 0
+C_8_I
+Text Label 10600 5100 2    60   ~ 0
+A1_I
+Text Label 10600 5300 2    60   ~ 0
+A3_I
+Text Label 9450 5200 2    60   ~ 0
+C_1_I
+Text Label 9450 5400 2    60   ~ 0
+C_3_I
+Text Label 9450 5600 2    60   ~ 0
+C_5_I
+Text Label 9450 5800 2    60   ~ 0
+C_7_I
+Text Label 9450 6000 2    60   ~ 0
+C_9_I
+Text Label 10600 5200 2    60   ~ 0
+A2_I
+Text Label 10600 5400 2    60   ~ 0
+A4_I
+NoConn ~ 1450 4700
+NoConn ~ 3050 4700
+NoConn ~ 4650 4700
+NoConn ~ 6250 4700
+Text Label 2250 4650 0    60   ~ 0
+A1
+Text Label 3850 4650 0    60   ~ 0
+A2
+Text Label 5450 4650 0    60   ~ 0
+A3
+Text Label 7050 4650 0    60   ~ 0
+A4
+Text Label 10600 5900 2    65   ~ 0
+DLS_I
+Text Label 10600 6000 2    60   ~ 0
+GND_I
+Text Label 10600 5500 2    60   ~ 0
+170V_I
+Text Notes 8800 4650 0    70   ~ 0
+Connectors to main board
+Wire Wire Line
+	900  3300 1400 3300
+Wire Wire Line
+	900  2600 1400 2600
+Wire Wire Line
+	900  1900 1400 1900
+Wire Wire Line
+	900  1200 1400 1200
+Wire Wire Line
+	1950 1400 1800 1400
+Wire Wire Line
+	1950 2100 1800 2100
+Wire Wire Line
+	1950 2800 1800 2800
+Wire Wire Line
+	1650 3500 1950 3500
+Wire Wire Line
+	1800 1200 1950 1200
+Wire Wire Line
+	2550 1400 2700 1400
+Wire Wire Line
+	1800 1900 1950 1900
+Wire Wire Line
+	2550 2100 2700 2100
+Wire Wire Line
+	1800 2600 1950 2600
+Wire Wire Line
+	1800 3300 1950 3300
+Wire Wire Line
+	2550 2800 2700 2800
+Wire Wire Line
+	2550 3500 2700 3500
+Wire Wire Line
+	2750 1200 2550 1200
+Wire Wire Line
+	2750 1900 2550 1900
+Wire Wire Line
+	2750 850  2750 3300
+Wire Wire Line
+	2750 2600 2550 2600
+Connection ~ 2750 1900
+Wire Wire Line
+	2750 3300 2550 3300
+Connection ~ 2750 2600
+Connection ~ 2750 1200
+Wire Wire Line
+	3100 1400 3450 1400
+Wire Wire Line
+	3100 2100 3450 2100
+Wire Wire Line
+	3100 2800 3450 2800
+Wire Wire Line
+	3100 3500 3450 3500
+Wire Wire Line
+	1450 5600 1450 5700
+Wire Wire Line
+	1050 5700 6250 5700
+Wire Wire Line
+	3050 5700 3050 5600
+Connection ~ 1450 5700
+Wire Wire Line
+	4650 5700 4650 5600
+Connection ~ 3050 5700
+Wire Wire Line
+	6250 5700 6250 5600
+Connection ~ 4650 5700
+Wire Wire Line
+	6350 5750 6350 5600
+Wire Wire Line
+	1550 5750 7600 5750
+Wire Wire Line
+	4750 5750 4750 5600
+Wire Wire Line
+	3150 5750 3150 5600
+Connection ~ 4750 5750
+Wire Wire Line
+	1550 5750 1550 5600
+Connection ~ 3150 5750
+Connection ~ 6350 5750
+Wire Wire Line
+	6450 5800 6450 5600
+Wire Wire Line
+	1050 5800 6450 5800
+Wire Wire Line
+	4850 5800 4850 5600
+Wire Wire Line
+	3250 5800 3250 5600
+Connection ~ 4850 5800
+Wire Wire Line
+	1650 5800 1650 5600
+Connection ~ 3250 5800
+Connection ~ 1650 5800
+Wire Wire Line
+	1750 5600 1750 5850
+Wire Wire Line
+	1750 5850 7600 5850
+Wire Wire Line
+	3350 5850 3350 5600
+Wire Wire Line
+	4950 5850 4950 5600
+Connection ~ 3350 5850
+Wire Wire Line
+	6550 5850 6550 5600
+Connection ~ 4950 5850
+Connection ~ 6550 5850
+Wire Wire Line
+	6650 5900 6650 5600
+Wire Wire Line
+	1050 5900 6650 5900
+Wire Wire Line
+	5050 5900 5050 5600
+Wire Wire Line
+	3450 5900 3450 5600
+Connection ~ 5050 5900
+Wire Wire Line
+	1850 5900 1850 5600
+Connection ~ 3450 5900
+Connection ~ 1850 5900
+Wire Wire Line
+	1950 5600 1950 5950
+Wire Wire Line
+	1950 5950 7600 5950
+Wire Wire Line
+	3550 5950 3550 5600
+Wire Wire Line
+	5150 5950 5150 5600
+Connection ~ 3550 5950
+Wire Wire Line
+	6750 5950 6750 5600
+Connection ~ 5150 5950
+Connection ~ 6750 5950
+Wire Wire Line
+	6850 6000 6850 5600
+Wire Wire Line
+	1050 6000 6850 6000
+Wire Wire Line
+	5250 6000 5250 5600
+Wire Wire Line
+	3650 6000 3650 5600
+Connection ~ 5250 6000
+Wire Wire Line
+	2050 6000 2050 5600
+Connection ~ 3650 6000
+Connection ~ 2050 6000
+Wire Wire Line
+	2150 5600 2150 6050
+Wire Wire Line
+	2150 6050 7600 6050
+Wire Wire Line
+	3750 6050 3750 5600
+Wire Wire Line
+	5350 6050 5350 5600
+Connection ~ 3750 6050
+Wire Wire Line
+	6950 6050 6950 5600
+Connection ~ 5350 6050
+Connection ~ 6950 6050
+Wire Wire Line
+	7050 6100 7050 5600
+Wire Wire Line
+	1050 6100 7050 6100
+Wire Wire Line
+	5450 6100 5450 5600
+Wire Wire Line
+	3850 6100 3850 5600
+Connection ~ 5450 6100
+Wire Wire Line
+	2250 6100 2250 5600
+Connection ~ 3850 6100
+Connection ~ 2250 6100
+Wire Wire Line
+	2350 5600 2350 6150
+Wire Wire Line
+	2350 6150 7600 6150
+Wire Wire Line
+	3950 6150 3950 5600
+Wire Wire Line
+	5550 6150 5550 5600
+Connection ~ 3950 6150
+Wire Wire Line
+	7150 6150 7150 5600
+Connection ~ 5550 6150
+Connection ~ 7150 6150
+Wire Wire Line
+	9100 5600 9450 5600
+Wire Wire Line
+	9450 5700 9100 5700
+Wire Wire Line
+	9450 5800 9100 5800
+Wire Wire Line
+	9450 5900 9100 5900
+Wire Wire Line
+	9450 6000 9100 6000
+Wire Wire Line
+	9100 5300 9450 5300
+Wire Wire Line
+	9100 5400 9450 5400
+Wire Wire Line
+	9100 5500 9450 5500
+Wire Wire Line
+	9100 5100 9450 5100
+Wire Wire Line
+	9100 5200 9450 5200
+Wire Wire Line
+	1950 4700 1950 4650
+Wire Wire Line
+	1950 4650 2250 4650
+Wire Wire Line
+	3550 4700 3550 4650
+Wire Wire Line
+	3550 4650 3850 4650
+Wire Wire Line
+	5150 4700 5150 4650
+Wire Wire Line
+	5150 4650 5450 4650
+Wire Wire Line
+	6750 4700 6750 4650
+Wire Wire Line
+	6750 4650 7050 4650
+Wire Wire Line
+	10200 5100 10600 5100
+Wire Wire Line
+	10200 5200 10600 5200
+Wire Wire Line
+	2200 5800 2150 5800
+Wire Wire Line
+	10200 5300 10600 5300
+Wire Wire Line
+	10200 5400 10600 5400
+Wire Wire Line
+	1800 1400 1800 3500
+Connection ~ 1800 2800
+Connection ~ 1800 2100
+Wire Wire Line
+	1650 3500 1650 3850
+Connection ~ 1800 3500
+Wire Wire Line
+	10200 5600 10600 5600
+Wire Wire Line
+	10200 5700 10600 5700
+Text Label 4250 2250 0    60   ~ 0
+T_LED1_I
+Wire Wire Line
+	10200 6000 10600 6000
+Wire Wire Line
+	10200 5900 10600 5900
+Wire Wire Line
+	10200 5800 10600 5800
+Text Label 10600 5700 2    65   ~ 0
+T_LED2_I
+Wire Wire Line
+	5400 2000 5400 2050
+Wire Wire Line
+	5400 2450 5400 2850
+$Comp
+L BF458 Q2
+U 1 1 5BD4A87B
+P 6900 2250
+F 0 "Q2" H 6800 2000 70  0000 L BNN
+F 1 "MPSA42" H 6500 2400 70  0000 L BNN
+F 2 "NixieClockMaster:2N7000_TO92" H 6890 2040 70  0001 L TNN
+F 3 "" H 6900 2250 60  0001 C CNN
+F 4 "D" H 7000 2274 60  0000 L BNN "Field5"
+F 5 "S" H 6999 2075 60  0000 L BNN "Field6"
+F 6 "G" H 6725 2075 60  0001 L BNN "Field7"
+	1    6900 2250
+	1    0    0    -1  
+$EndComp
+$Comp
+L RCL_R-EU_0207/2V R12
+U 1 1 5BD4A881
+P 7000 1800
+F 0 "R12" H 6850 1858 70  0000 L BNN
+F 1 "1k" H 6850 1670 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 6990 1590 70  0001 L TNN
+F 3 "" H 7000 1800 60  0001 C CNN
+	1    7000 1800
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	6250 2250 5950 2250
+Text Label 5950 2250 0    60   ~ 0
+T_LED2_I
+Wire Wire Line
+	7000 2000 7000 2050
+Wire Wire Line
+	7000 2850 7000 2450
+Wire Wire Line
+	5400 2850 8250 2850
+Wire Wire Line
+	6450 2850 6450 3150
+Wire Wire Line
+	6450 3150 6750 3150
+Connection ~ 6450 2850
+Text Label 6750 3150 0    60   ~ 0
+GND_I
+$Comp
+L Lamp_Neon NE2
+U 1 1 5BD4B3D7
+P 7000 1400
+F 0 "NE2" H 7025 1550 50  0000 L CNN
+F 1 "Lamp_Neon" H 7025 1250 50  0000 L CNN
+F 2 "NixieClockMaster:LED-5MM-Centred" V 7000 1500 50  0001 C CNN
+F 3 "" V 7000 1500 50  0001 C CNN
+	1    7000 1400
+	1    0    0    -1  
+$EndComp
+$Comp
+L Lamp_Neon NE1
+U 1 1 5BD4B4BB
+P 5400 1400
+F 0 "NE1" H 5425 1550 50  0000 L CNN
+F 1 "Lamp_Neon" H 5425 1250 50  0000 L CNN
+F 2 "NixieClockMaster:LED-5MM-Centred" V 5400 1500 50  0001 C CNN
+F 3 "" V 5400 1500 50  0001 C CNN
+	1    5400 1400
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5400 1200 5400 1000
+Wire Wire Line
+	5400 1000 7000 1000
+Wire Wire Line
+	7000 1000 7000 1200
+Wire Wire Line
+	6450 1000 6450 750 
+Wire Wire Line
+	6450 750  7400 750 
+Connection ~ 6450 1000
+Text Label 7900 750  0    60   ~ 0
+170V_I
+$Comp
+L RCL_R-EU_0207/2V R9
+U 1 1 5BD54E86
+P 4850 2250
+F 0 "R9" H 4700 2308 70  0000 L BNN
+F 1 "4.7k" H 4700 2120 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 4840 2040 70  0001 L TNN
+F 3 "" H 4850 2250 60  0001 C CNN
+	1    4850 2250
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4650 2250 4250 2250
+Wire Wire Line
+	5050 2250 5100 2250
+$Comp
+L RCL_R-EU_0207/2V R11
+U 1 1 5BD555D9
+P 6450 2250
+F 0 "R11" H 6300 2308 70  0000 L BNN
+F 1 "4.7k" H 6300 2120 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 6440 2040 70  0001 L TNN
+F 3 "" H 6450 2250 60  0001 C CNN
+	1    6450 2250
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	6650 2250 6700 2250
+Wire Wire Line
+	8250 2850 8250 2550
+Wire Wire Line
+	8250 2150 8400 2150
+Wire Wire Line
+	8250 2250 8250 2150
+Text Label 8400 2150 0    60   ~ 0
+DLS_I
+$Comp
+L R_PHOTO R13
+U 1 1 594E2512
+P 8250 2400
+F 0 "R13" H 8300 2450 50  0000 L CNN
+F 1 "R_PHOTO" H 8300 2400 50  0000 L TNN
+F 2 "NixieClockMaster:NEON-5MM-Centred" V 8300 2150 50  0001 L CNN
+F 3 "" H 8250 2350 50  0001 C CNN
+	1    8250 2400
+	1    0    0    -1  
+$EndComp
+Connection ~ 7000 2850
+Wire Wire Line
+	1650 3850 1900 3850
+Text Label 1900 3850 0    60   ~ 0
+GND_I
+$Comp
+L Conn_01x10 J2
+U 1 1 5BD5A756
+P 10000 5600
+F 0 "J2" H 10000 6050 50  0000 C CNN
+F 1 "Conn_01x10" V 10000 5600 50  0000 C CNN
+F 2 "Pin_Headers:Pin_Header_Straight_1x10_Pitch2.54mm" H 10000 4400 50  0001 C CNN
+F 3 "" H 10000 4400 50  0001 C CNN
+	1    10000 5600
+	-1   0    0    1   
+$EndComp
+Text Label 10600 5600 2    60   ~ 0
+VCC_I
+Wire Wire Line
+	10200 5500 10600 5500
+$Comp
+L Jumper_NC_Dual JP1
+U 1 1 5BD5AF1B
+P 7700 1150
+F 0 "JP1" H 7750 1050 50  0000 L CNN
+F 1 "Jumper_NC_Dual" H 7700 1250 50  0000 C BNN
+F 2 "NixieClockMaster:SOLDER-JUMPER_2-WAY" H 7700 1150 50  0001 C CNN
+F 3 "" H 7700 1150 50  0001 C CNN
+	1    7700 1150
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	7600 1150 7400 1150
+Wire Wire Line
+	7400 1150 7400 750 
+Wire Wire Line
+	7700 900  7700 750 
+Wire Wire Line
+	7700 750  7900 750 
+Wire Wire Line
+	7700 1400 7700 1700
+Wire Wire Line
+	7700 1700 7900 1700
+Text Label 7900 1700 0    60   ~ 0
+VCC_I
+Text Label 6100 1000 2    20   ~ 0
+SEP_VCC
+$EndSCHEMATC
