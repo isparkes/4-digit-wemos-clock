@@ -1,0 +1,515 @@
+Cmp-Mod V01 Created by PcbNew   date = Thu 30 Jun 2016 23:22:38 CEST
+
+BeginCmp
+TimeStamp = 57307EEC
+Path = 
+Reference = REF**;
+ValeurCmp = MountingHole_3mm;
+IdModule  = Mounting_Holes:MountingHole_3mm;
+EndCmp
+
+BeginCmp
+TimeStamp = 57307E8D
+Path = 
+Reference = REF**;
+ValeurCmp = MountingHole_3mm;
+IdModule  = Mounting_Holes:MountingHole_3mm;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F903
+Path = /5696CD28
+Reference = Q2;
+ValeurCmp = 16MHz;
+IdModule  = Crystals:Crystal_HC49-U_Vertical;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AEE
+Path = /5696E178
+Reference = R22;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03A94
+Path = /5696D110
+Reference = R1;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03A9A
+Path = /5696D1D8
+Reference = R2;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AE2
+Path = /5696DFE8
+Reference = R20;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AE8
+Path = /5696E0B0
+Reference = R21;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03ADC
+Path = /5696DF20
+Reference = R19;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03ACA
+Path = /5696DC00
+Reference = R15;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AD0
+Path = /5696DCC8
+Reference = R16;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AA6
+Path = /5696D368
+Reference = R4;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AD6
+Path = /5696DD90
+Reference = R17;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AAC
+Path = /5696D430
+Reference = R5;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AB2
+Path = /5696D4F8
+Reference = R6;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AA0
+Path = /5696D2A0
+Reference = R3;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AC4
+Path = /5696DB38
+Reference = R14;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03ABE
+Path = /5696DA70
+Reference = R13;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A03AB8
+Path = /5696D9A8
+Reference = R12;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2FA0B
+Path = /5696E240
+Reference = R23;
+ValeurCmp = 1k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F99B
+Path = /5696D750
+Reference = R9;
+ValeurCmp = 390k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F9A3
+Path = /5696D818
+Reference = R10;
+ValeurCmp = 4.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F993
+Path = /5696D688
+Reference = R8;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F9E3
+Path = /5696DE58
+Reference = R18;
+ValeurCmp = 10k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56C3F921
+Path = /56B9107F
+Reference = TP1;
+ValeurCmp = HV;
+IdModule  = KickstarterNixie:TESTPAD_P1-13;
+EndCmp
+
+BeginCmp
+TimeStamp = 56C3F926
+Path = /56B92400
+Reference = TP2;
+ValeurCmp = GND;
+IdModule  = KickstarterNixie:TESTPAD_P1-13;
+EndCmp
+
+BeginCmp
+TimeStamp = 56C3F92B
+Path = /56B94615
+Reference = TP3;
+ValeurCmp = VCC;
+IdModule  = KickstarterNixie:TESTPAD_P1-13;
+EndCmp
+
+BeginCmp
+TimeStamp = 5741181F
+Path = /572B3850
+Reference = D1;
+ValeurCmp = 1N4001;
+IdModule  = Diodes_ThroughHole:Diode_DO-41_SOD81_Horizontal_RM10;
+EndCmp
+
+BeginCmp
+TimeStamp = 574119A7
+Path = /572B289D
+Reference = D2;
+ValeurCmp = UF4007;
+IdModule  = Diodes_ThroughHole:Diode_DO-41_SOD81_Horizontal_RM10;
+EndCmp
+
+BeginCmp
+TimeStamp = 56C3FA69
+Path = /5696BD88
+Reference = C9;
+ValeurCmp = 220uF;
+IdModule  = Capacitors_ThroughHole:C_Radial_D6.3_L11.2_P2.5;
+EndCmp
+
+BeginCmp
+TimeStamp = 56C3FA5D
+Path = /5696B810
+Reference = C1;
+ValeurCmp = 2.2uF;
+IdModule  = Capacitors_ThroughHole:C_Radial_D6.3_L11.2_P2.5;
+EndCmp
+
+BeginCmp
+TimeStamp = 56C3FA63
+Path = /5696B9A0
+Reference = C4;
+ValeurCmp = 220uF;
+IdModule  = Capacitors_ThroughHole:C_Radial_D6.3_L11.2_P2.5;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F829
+Path = /5696C4F4
+Reference = IC3;
+ValeurCmp = 74141N;
+IdModule  = Recovered:74141_DIL16;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F849
+Path = /5696C6E8
+Reference = LED1;
+ValeurCmp = Power;
+IdModule  = Recovered:LED_3MM;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F80F
+Path = /5696C42C
+Reference = IC2;
+ValeurCmp = MEGA8-P;
+IdModule  = Recovered:328P_DIL28;
+EndCmp
+
+BeginCmp
+TimeStamp = 56ABA0E9
+Path = /5696CB98
+Reference = OK6;
+ValeurCmp = EL817C;
+IdModule  = Recovered:optocoupler-DIL04;
+EndCmp
+
+BeginCmp
+TimeStamp = 56ABA0E1
+Path = /5696CAD0
+Reference = OK5;
+ValeurCmp = EL817C;
+IdModule  = Recovered:optocoupler-DIL04;
+EndCmp
+
+BeginCmp
+TimeStamp = 56ABA0D9
+Path = /5696CA08
+Reference = OK4;
+ValeurCmp = EL817C;
+IdModule  = Recovered:optocoupler-DIL04;
+EndCmp
+
+BeginCmp
+TimeStamp = 56ABA0D1
+Path = /5696C940
+Reference = OK3;
+ValeurCmp = EL817C;
+IdModule  = Recovered:optocoupler-DIL04;
+EndCmp
+
+BeginCmp
+TimeStamp = 56ABA0C9
+Path = /5696C878
+Reference = OK2;
+ValeurCmp = EL817C;
+IdModule  = Recovered:optocoupler-DIL04;
+EndCmp
+
+BeginCmp
+TimeStamp = 56ABA0C1
+Path = /5696C7B0
+Reference = OK1;
+ValeurCmp = EL817C;
+IdModule  = Recovered:optocoupler-DIL04;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2FB00
+Path = /5696E7B8
+Reference = SV7;
+ValeurCmp = CONN_ISCP;
+IdModule  = Recovered:CON-LSTB_MA03-2;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F8CA
+Path = /5696CC60
+Reference = Q1;
+ValeurCmp = IRF740;
+IdModule  = Recovered:IRF740-TO220BV;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F953
+Path = /5696D048
+Reference = Q6;
+ValeurCmp = 2N7000;
+IdModule  = Recovered:TRANSISTOR-FET_TO92;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F917
+Path = /5696CDF0
+Reference = Q3;
+ValeurCmp = 2N7000;
+IdModule  = Recovered:TRANSISTOR-FET_TO92;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F92B
+Path = /5696CEB8
+Reference = Q4;
+ValeurCmp = 2N7000;
+IdModule  = Recovered:TRANSISTOR-FET_TO92;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F93F
+Path = /5696CF80
+Reference = Q5;
+ValeurCmp = 2N7000;
+IdModule  = Recovered:TRANSISTOR-FET_TO92;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F830
+Path = /5696C620
+Reference = L1;
+ValeurCmp = 100uH;
+IdModule  = Recovered:Inductor-100mH;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F9AB
+Path = /5696D8E0
+Reference = R11;
+ValeurCmp = 10k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2FA79
+Path = /5696E560
+Reference = SV4;
+ValeurCmp = CONN_RTC;
+IdModule  = Recovered:ARDUNIX6_MA04-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2FAC9
+Path = /5696E6F0
+Reference = SV6;
+ValeurCmp = CONN_LED;
+IdModule  = Recovered:ARDUNIX6_MA04-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2FA24
+Path = /5696E308
+Reference = SV1;
+ValeurCmp = PWR;
+IdModule  = Recovered:ARDUNIX6_MA04-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 569EDB6E
+Path = /569EDB5E
+Reference = SV5;
+ValeurCmp = CONN_01X10;
+IdModule  = Recovered:ARDUNIX6_MA10-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2FA3D
+Path = /5696E3D0
+Reference = SV2;
+ValeurCmp = CONN_FRONT;
+IdModule  = Recovered:ARDUNIX6_MA04-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 569EDB91
+Path = /569EE12F
+Reference = SV3;
+ValeurCmp = CONN_01X06;
+IdModule  = Recovered:ARDUNIX6_MA06-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F728
+Path = /5696BB30
+Reference = C6;
+ValeurCmp = 22pF;
+IdModule  = Recovered:rcl-C050-024X044;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F734
+Path = /5696BBF8
+Reference = C7;
+ValeurCmp = 100nF;
+IdModule  = Recovered:rcl-C050-024X044;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F6D5
+Path = /5696B8D8
+Reference = C2;
+ValeurCmp = 100nF;
+IdModule  = Recovered:rcl-C050-024X044;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F71C
+Path = /5696BA68
+Reference = C5;
+ValeurCmp = 22pF;
+IdModule  = Recovered:rcl-C050-024X044;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F740
+Path = /5696BCC0
+Reference = C8;
+ValeurCmp = 100nF;
+IdModule  = Recovered:rcl-C050-024X044;
+EndCmp
+
+BeginCmp
+TimeStamp = 57307E7A
+Path = 
+Reference = REF**;
+ValeurCmp = MountingHole_3mm;
+IdModule  = Mounting_Holes:MountingHole_3mm;
+EndCmp
+
+BeginCmp
+TimeStamp = 57307ED6
+Path = 
+Reference = REF**;
+ValeurCmp = MountingHole_3mm;
+IdModule  = Mounting_Holes:MountingHole_3mm;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F98B
+Path = /5696D5C0
+Reference = R7;
+ValeurCmp = 2.7k;
+IdModule  = rcl:rcl-0207%2f2V;
+EndCmp
+
+BeginCmp
+TimeStamp = 56A2F7E9
+Path = /5696C364
+Reference = IC1;
+ValeurCmp = 7805TV;
+IdModule  = NixieClockModule:7805_TO220V;
+EndCmp
+
+EndListe
