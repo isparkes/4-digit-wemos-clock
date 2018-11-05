@@ -162,16 +162,13 @@ F 4 "Value" H 2250 1300 60  0001 C CNN "Fieldname"
 	1    0    0    -1  
 $EndComp
 $Comp
-L BF458 Q1
+L Q_NPN_EBC Q1
 U 1 1 5696D048
 P 5300 2250
 F 0 "Q1" H 5200 2000 70  0000 L BNN
 F 1 "MPSA42" H 4900 2400 70  0000 L BNN
 F 2 "NixieClockMaster:2N7000_TO92" H 5290 2040 70  0001 L TNN
 F 3 "" H 5300 2250 60  0001 C CNN
-F 4 "D" H 5400 2274 60  0000 L BNN "Field5"
-F 5 "S" H 5399 2075 60  0000 L BNN "Field6"
-F 6 "G" H 5125 2075 60  0001 L BNN "Field7"
 	1    5300 2250
 	1    0    0    -1  
 $EndComp
@@ -432,7 +429,7 @@ Text Label 10600 5900 2    65   ~ 0
 DLS_I
 Text Label 10600 6000 2    60   ~ 0
 GND_I
-Text Label 10600 5600 2    60   ~ 0
+Text Label 10600 5500 2    60   ~ 0
 170V_I
 Text Notes 8800 4650 0    70   ~ 0
 Connectors to main board
@@ -449,7 +446,7 @@ Wire Wire Line
 Wire Wire Line
 	1950 2100 1800 2100
 Wire Wire Line
-	1950 2800 1800 2800
+	1800 2800 1950 2800
 Wire Wire Line
 	1650 3500 1950 3500
 Wire Wire Line
@@ -691,16 +688,13 @@ Wire Wire Line
 Wire Wire Line
 	5400 2450 5400 2850
 $Comp
-L BF458 Q2
+L Q_NPN_EBC Q2
 U 1 1 5BD4A87B
 P 6900 2250
 F 0 "Q2" H 6800 2000 70  0000 L BNN
 F 1 "MPSA42" H 6500 2400 70  0000 L BNN
 F 2 "NixieClockMaster:2N7000_TO92" H 6890 2040 70  0001 L TNN
 F 3 "" H 6900 2250 60  0001 C CNN
-F 4 "D" H 7000 2274 60  0000 L BNN "Field5"
-F 5 "S" H 6999 2075 60  0000 L BNN "Field6"
-F 6 "G" H 6725 2075 60  0001 L BNN "Field7"
 	1    6900 2250
 	1    0    0    -1  
 $EndComp
@@ -800,7 +794,7 @@ Wire Wire Line
 Wire Wire Line
 	8250 2150 8400 2150
 Wire Wire Line
-	8250 2250 8250 2150
+	8250 2050 8250 2250
 Text Label 8400 2150 0    60   ~ 0
 DLS_I
 $Comp
@@ -830,7 +824,7 @@ F 3 "" H 10000 4400 50  0001 C CNN
 	1    10000 5600
 	-1   0    0    1   
 $EndComp
-Text Label 10600 5500 2    60   ~ 0
+Text Label 10600 5600 2    60   ~ 0
 VCC_I
 Wire Wire Line
 	10200 5500 10600 5500
@@ -854,11 +848,26 @@ Wire Wire Line
 Wire Wire Line
 	7700 750  7900 750 
 Wire Wire Line
-	7700 1400 7700 1700
-Wire Wire Line
-	7700 1700 7900 1700
-Text Label 7900 1700 0    60   ~ 0
+	7700 1400 7700 1550
+Text Label 8450 1550 0    60   ~ 0
 VCC_I
 Text Label 6100 1000 2    20   ~ 0
 SEP_VCC
+$Comp
+L RCL_R-EU_0207/2V R14
+U 1 1 5BDF52A8
+P 8250 1850
+F 0 "R14" H 8100 1908 70  0000 L BNN
+F 1 "10k" H 8100 1720 70  0000 L BNN
+F 2 "NixieClockMaster:R-0207_2V" H 8240 1640 70  0001 L TNN
+F 3 "" H 8250 1850 60  0001 C CNN
+	1    8250 1850
+	0    -1   -1   0   
+$EndComp
+Connection ~ 8250 2150
+Wire Wire Line
+	7700 1550 8450 1550
+Wire Wire Line
+	8250 1550 8250 1650
+Connection ~ 8250 1550
 $EndSCHEMATC
