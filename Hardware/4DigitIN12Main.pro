@@ -1,4 +1,4 @@
-update=04.11.2018 12:17:31
+update=10.11.2018 08:07:29
 version=1
 last_client=kicad
 [pcbnew]
@@ -126,3 +126,13 @@ LibName94=Xicor
 LibName95=xilinx
 LibName96=zetex
 LibName97=Zilog
+[schematic_editor]
+version=1
+PageLayoutDescrFile=
+PlotDirectoryName=
+SubpartIdSeparator=0
+SubpartFirstId=65
+NetFmtName=
+SpiceForceRefPrefix=0
+SpiceUseNetNumbers=0
+LabSize=60
