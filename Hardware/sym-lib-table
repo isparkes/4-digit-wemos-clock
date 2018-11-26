@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name 4DigitIN12Main-rescue)(type Legacy)(uri ${KIPRJMOD}/4DigitIN12Main-rescue.lib)(options "")(descr ""))
+)
