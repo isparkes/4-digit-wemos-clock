@@ -1,4 +1,3 @@
 (fp_lib_table
   (lib (name Recovered)(type KiCad)(uri "$(KIPRJMOD)/Recovered.pretty")(options "")(descr ""))
-  (lib (name NixieClockModule)(type KiCad)(uri "$(KIPRJMOD)/NixieClockModule.pretty")(options "")(descr ""))
 )

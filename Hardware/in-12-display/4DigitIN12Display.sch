@@ -1,103 +1,6 @@
-EESchema Schematic File Version 2
-LIBS:4DigitIN12-cache
-LIBS:4DigitIN12-rescue
-LIBS:74xgxx
-LIBS:74xx
-LIBS:ac-dc
-LIBS:actel
-LIBS:adc-dac
-LIBS:allegro
-LIBS:Altera
-LIBS:analog_devices
-LIBS:analog_switches
-LIBS:atmel
-LIBS:audio
-LIBS:battery_management
-LIBS:bbd
-LIBS:bosch
-LIBS:brooktre
-LIBS:cmos_ieee
-LIBS:cmos4000
-LIBS:conn
-LIBS:contrib
-LIBS:cypress
-LIBS:dc-dc
-LIBS:device
-LIBS:digital-audio
-LIBS:diode
-LIBS:display
-LIBS:dsp
-LIBS:elec-unifil
-LIBS:ESD_Protection
-LIBS:ftdi
-LIBS:gennum
-LIBS:graphic_symbols
-LIBS:hc11
-LIBS:infineon
-LIBS:intel
-LIBS:interface
-LIBS:intersil
-LIBS:ir
-LIBS:Lattice
-LIBS:leds
-LIBS:LEM
-LIBS:linear
-LIBS:logic_programmable
-LIBS:maxim
-LIBS:mechanical
-LIBS:memory
-LIBS:microchip
-LIBS:microchip_dspic33dsc
-LIBS:microchip_pic10mcu
-LIBS:microchip_pic12mcu
-LIBS:microchip_pic16mcu
-LIBS:microchip_pic18mcu
-LIBS:microchip_pic24mcu
-LIBS:microchip_pic32mcu
-LIBS:microcontrollers
-LIBS:modules
-LIBS:motor_drivers
-LIBS:motorola
-LIBS:motors
-LIBS:msp430
-LIBS:nordicsemi
-LIBS:nxp
-LIBS:nxp_armmcu
-LIBS:onsemi
-LIBS:opto
-LIBS:Oscillators
-LIBS:philips
-LIBS:power
-LIBS:Power_Management
-LIBS:powerint
-LIBS:pspice
-LIBS:references
-LIBS:regul
-LIBS:relays
-LIBS:rfcom
-LIBS:RFSolutions
-LIBS:sensors
-LIBS:silabs
-LIBS:siliconi
-LIBS:stm8
-LIBS:stm32
-LIBS:supertex
-LIBS:switches
-LIBS:texas
-LIBS:transf
-LIBS:transistors
-LIBS:triac_thyristor
-LIBS:ttl_ieee
-LIBS:valves
-LIBS:video
-LIBS:wiznet
-LIBS:Worldsemi
-LIBS:Xicor
-LIBS:xilinx
-LIBS:zetex
-LIBS:Zilog
+EESchema Schematic File Version 4
 LIBS:4DigitIN12Display-cache
-EELAYER 25 0
+EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -114,7 +17,7 @@ $EndDescr
 Text Notes 950  900  0    70   ~ 0
 Anode Control
 $Comp
-L PC817 OK4
+L 4DigitIN12-cache:PC817 OK4
 U 1 1 5696C7B0
 P 2250 3400
 F 0 "OK4" H 1975 3625 70  0000 L BNN
@@ -126,7 +29,7 @@ F 4 "Value" H 2250 3400 60  0001 C CNN "Fieldname"
 	1    0    0    -1  
 $EndComp
 $Comp
-L PC817 OK3
+L 4DigitIN12-cache:PC817 OK3
 U 1 1 5696C878
 P 2250 2700
 F 0 "OK3" H 1975 2925 70  0000 L BNN
@@ -138,7 +41,7 @@ F 4 "Value" H 2250 2700 60  0001 C CNN "Fieldname"
 	1    0    0    -1  
 $EndComp
 $Comp
-L PC817 OK2
+L 4DigitIN12-cache:PC817 OK2
 U 1 1 5696C940
 P 2250 2000
 F 0 "OK2" H 1975 2225 70  0000 L BNN
@@ -150,7 +53,7 @@ F 4 "Value" H 2250 2000 60  0001 C CNN "Fieldname"
 	1    0    0    -1  
 $EndComp
 $Comp
-L PC817 OK1
+L 4DigitIN12-cache:PC817 OK1
 U 1 1 5696CA08
 P 2250 1300
 F 0 "OK1" H 1975 1525 70  0000 L BNN
@@ -162,84 +65,84 @@ F 4 "Value" H 2250 1300 60  0001 C CNN "Fieldname"
 	1    0    0    -1  
 $EndComp
 $Comp
-L Q_NPN_EBC Q1
+L 4DigitIN12Display-rescue:Q_NPN_EBC Q1
 U 1 1 5696D048
 P 6750 2600
 F 0 "Q1" H 6650 2350 70  0000 L BNN
 F 1 "MPSA42" H 6350 2750 70  0000 L BNN
-F 2 "NixieClockMaster:2N7000_TO92" H 6740 2390 70  0001 L TNN
+F 2 "NixieClockMaster:TO-92_inline_MPSA42" H 6740 2390 70  0001 L TNN
 F 3 "" H 6750 2600 60  0001 C CNN
 	1    6750 2600
 	1    0    0    -1  
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R2
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R2
 U 1 1 5696D110
 P 1600 1900
 F 0 "R2" H 1450 1958 70  0000 L BNN
 F 1 "1k" H 1450 1770 70  0000 L BNN
-F 2 "NixieClockMaster:R_1206_HandSoldering" H 1590 1690 70  0001 L TNN
+F 2 "NixieClockMaster:R-0207_2V" H 1590 1690 70  0001 L TNN
 F 3 "" H 1600 1900 60  0001 C CNN
 	1    1600 1900
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R3
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R3
 U 1 1 5696D1D8
 P 1600 2600
 F 0 "R3" H 1450 2658 70  0000 L BNN
 F 1 "1k" H 1450 2470 70  0000 L BNN
-F 2 "NixieClockMaster:R_1206_HandSoldering" H 1590 2390 70  0001 L TNN
+F 2 "NixieClockMaster:R-0207_2V" H 1590 2390 70  0001 L TNN
 F 3 "" H 1600 2600 60  0001 C CNN
 	1    1600 2600
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R4
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R4
 U 1 1 5696D2A0
 P 1600 3300
 F 0 "R4" H 1450 3358 70  0000 L BNN
 F 1 "1k" H 1450 3170 70  0000 L BNN
-F 2 "NixieClockMaster:R_1206_HandSoldering" H 1590 3090 70  0001 L TNN
+F 2 "NixieClockMaster:R-0207_2V" H 1590 3090 70  0001 L TNN
 F 3 "" H 1600 3300 60  0001 C CNN
 	1    1600 3300
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R6
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R6
 U 1 1 5696D368
 P 2900 2100
 F 0 "R6" H 2750 2158 70  0000 L BNN
 F 1 "3k" H 2750 1970 70  0000 L BNN
-F 2 "NixieClockMaster:R_1206_HandSoldering" H 2890 1890 70  0001 L TNN
+F 2 "NixieClockMaster:R-Long" H 2890 1890 70  0001 L TNN
 F 3 "" H 2900 2100 60  0001 C CNN
 	1    2900 2100
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R7
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R7
 U 1 1 5696D430
 P 2900 2800
 F 0 "R7" H 2750 2858 70  0000 L BNN
 F 1 "3k" H 2750 2670 70  0000 L BNN
-F 2 "NixieClockMaster:R_1206_HandSoldering" H 2890 2590 70  0001 L TNN
+F 2 "NixieClockMaster:R-Long" H 2890 2590 70  0001 L TNN
 F 3 "" H 2900 2800 60  0001 C CNN
 	1    2900 2800
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R8
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R8
 U 1 1 5696D4F8
 P 2900 3500
 F 0 "R8" H 2750 3558 70  0000 L BNN
 F 1 "3k" H 2750 3370 70  0000 L BNN
-F 2 "NixieClockMaster:R_1206_HandSoldering" H 2890 3290 70  0001 L TNN
+F 2 "NixieClockMaster:R-Long" H 2890 3290 70  0001 L TNN
 F 3 "" H 2900 3500 60  0001 C CNN
 	1    2900 3500
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R1
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R1
 U 1 1 5696DB38
 P 1600 1200
 F 0 "R1" H 1450 1258 70  0000 L BNN
@@ -250,18 +153,18 @@ F 3 "" H 1600 1200 60  0001 C CNN
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R5
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R5
 U 1 1 5696DD90
 P 2900 1400
 F 0 "R5" H 2750 1458 70  0000 L BNN
 F 1 "3k" H 2750 1270 70  0000 L BNN
-F 2 "NixieClockMaster:R-0207_2V" H 2890 1190 70  0001 L TNN
+F 2 "NixieClockMaster:R-Long" H 2890 1190 70  0001 L TNN
 F 3 "" H 2900 1400 60  0001 C CNN
 	1    2900 1400
 	-1   0    0    1   
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R10
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R10
 U 1 1 5696DF20
 P 6850 2150
 F 0 "R10" H 6700 2208 70  0000 L BNN
@@ -290,7 +193,7 @@ ANODE4
 Text Label 1800 1400 0    20   ~ 0
 GND
 Text Label 1800 2100 0    20   ~ 0
-gnd
+GND
 Text Label 1800 2800 0    20   ~ 0
 GND
 Text Label 1800 3500 0    20   ~ 0
@@ -300,7 +203,7 @@ Text Label 2750 850  0    59   ~ 0
 Text Label 2750 1800 0    59   ~ 0
 170V
 $Comp
-L IN-12B N4
+L 4DigitIN12-cache:IN-12B N4
 U 1 1 594AF3F6
 P 6750 5100
 F 0 "N4" H 6575 5925 50  0000 L BNN
@@ -319,7 +222,7 @@ A2
 Text Label 3450 1400 0    60   ~ 0
 A1
 $Comp
-L IN-12B N2
+L 4DigitIN12-cache:IN-12B N2
 U 1 1 594BCCCF
 P 3550 5100
 F 0 "N2" H 3375 5925 50  0000 L BNN
@@ -330,7 +233,7 @@ F 3 "" H 3550 5100 60  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L IN-12B N3
+L 4DigitIN12-cache:IN-12B N3
 U 1 1 594BCE31
 P 5150 5100
 F 0 "N3" H 4975 5925 50  0000 L BNN
@@ -341,7 +244,7 @@ F 3 "" H 5150 5100 60  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L IN-12B N1
+L 4DigitIN12-cache:IN-12B N1
 U 1 1 594BCF95
 P 1950 5100
 F 0 "N1" H 1775 5925 50  0000 L BNN
@@ -353,12 +256,12 @@ F 3 "" H 1950 5100 60  0001 C CNN
 $EndComp
 NoConn ~ 2600 5250
 $Comp
-L Conn_01x10 J1
+L 4DigitIN12-cache:Conn_01x10 J1
 U 1 1 594DD920
 P 8900 5600
 F 0 "J1" H 8900 6050 50  0000 C CNN
 F 1 "Conn_01x10" V 8900 5600 50  0000 C CNN
-F 2 "Pin_Headers:Pin_Header_Straight_1x10_Pitch2.54mm" H 8900 4400 50  0001 C CNN
+F 2 "NixieClockMaster:Header_MA10-1_narrow" H 8900 4400 50  0001 C CNN
 F 3 "" H 8900 4400 50  0001 C CNN
 	1    8900 5600
 	-1   0    0    1   
@@ -448,7 +351,7 @@ Wire Wire Line
 Wire Wire Line
 	1800 2800 1950 2800
 Wire Wire Line
-	1650 3500 1950 3500
+	1650 3500 1800 3500
 Wire Wire Line
 	1800 1200 1950 1200
 Wire Wire Line
@@ -470,7 +373,7 @@ Wire Wire Line
 Wire Wire Line
 	2750 1900 2550 1900
 Wire Wire Line
-	2750 850  2750 3300
+	2750 850  2750 1200
 Wire Wire Line
 	2750 2600 2550 2600
 Connection ~ 2750 1900
@@ -489,7 +392,7 @@ Wire Wire Line
 Wire Wire Line
 	1450 5600 1450 5700
 Wire Wire Line
-	1050 5700 6250 5700
+	1050 5700 1450 5700
 Wire Wire Line
 	3050 5700 3050 5600
 Connection ~ 1450 5700
@@ -502,7 +405,7 @@ Connection ~ 4650 5700
 Wire Wire Line
 	6350 5750 6350 5600
 Wire Wire Line
-	1550 5750 7600 5750
+	1550 5750 3150 5750
 Wire Wire Line
 	4750 5750 4750 5600
 Wire Wire Line
@@ -515,7 +418,7 @@ Connection ~ 6350 5750
 Wire Wire Line
 	6450 5800 6450 5600
 Wire Wire Line
-	1050 5800 6450 5800
+	1050 5800 1650 5800
 Wire Wire Line
 	4850 5800 4850 5600
 Wire Wire Line
@@ -528,7 +431,7 @@ Connection ~ 1650 5800
 Wire Wire Line
 	1750 5600 1750 5850
 Wire Wire Line
-	1750 5850 7600 5850
+	1750 5850 3350 5850
 Wire Wire Line
 	3350 5850 3350 5600
 Wire Wire Line
@@ -541,7 +444,7 @@ Connection ~ 6550 5850
 Wire Wire Line
 	6650 5900 6650 5600
 Wire Wire Line
-	1050 5900 6650 5900
+	1050 5900 1850 5900
 Wire Wire Line
 	5050 5900 5050 5600
 Wire Wire Line
@@ -554,7 +457,7 @@ Connection ~ 1850 5900
 Wire Wire Line
 	1950 5600 1950 5950
 Wire Wire Line
-	1950 5950 7600 5950
+	1950 5950 3550 5950
 Wire Wire Line
 	3550 5950 3550 5600
 Wire Wire Line
@@ -567,7 +470,7 @@ Connection ~ 6750 5950
 Wire Wire Line
 	6850 6000 6850 5600
 Wire Wire Line
-	1050 6000 6850 6000
+	1050 6000 2050 6000
 Wire Wire Line
 	5250 6000 5250 5600
 Wire Wire Line
@@ -580,7 +483,7 @@ Connection ~ 2050 6000
 Wire Wire Line
 	2150 5600 2150 6050
 Wire Wire Line
-	2150 6050 7600 6050
+	2150 6050 3750 6050
 Wire Wire Line
 	3750 6050 3750 5600
 Wire Wire Line
@@ -593,7 +496,7 @@ Connection ~ 6950 6050
 Wire Wire Line
 	7050 6100 7050 5600
 Wire Wire Line
-	1050 6100 7050 6100
+	1050 6100 2250 6100
 Wire Wire Line
 	5450 6100 5450 5600
 Wire Wire Line
@@ -606,7 +509,7 @@ Connection ~ 2250 6100
 Wire Wire Line
 	2350 5600 2350 6150
 Wire Wire Line
-	2350 6150 7600 6150
+	2350 6150 3950 6150
 Wire Wire Line
 	3950 6150 3950 5600
 Wire Wire Line
@@ -657,13 +560,11 @@ Wire Wire Line
 Wire Wire Line
 	10200 5200 10600 5200
 Wire Wire Line
-	2200 5800 2150 5800
-Wire Wire Line
 	10200 5300 10600 5300
 Wire Wire Line
 	10200 5400 10600 5400
 Wire Wire Line
-	1800 1400 1800 3500
+	1800 1400 1800 2100
 Connection ~ 1800 2800
 Connection ~ 1800 2100
 Wire Wire Line
@@ -688,18 +589,18 @@ Wire Wire Line
 Wire Wire Line
 	6850 2800 6850 3200
 $Comp
-L Q_NPN_EBC Q2
+L 4DigitIN12Display-rescue:Q_NPN_EBC Q2
 U 1 1 5BD4A87B
 P 8350 2600
 F 0 "Q2" H 8250 2350 70  0000 L BNN
 F 1 "MPSA42" H 7950 2750 70  0000 L BNN
-F 2 "NixieClockMaster:2N7000_TO92" H 8340 2390 70  0001 L TNN
+F 2 "NixieClockMaster:TO-92_inline_MPSA42" H 8340 2390 70  0001 L TNN
 F 3 "" H 8350 2600 60  0001 C CNN
 	1    8350 2600
 	1    0    0    -1  
 $EndComp
 $Comp
-L RCL_R-EU_0207/2V R12
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R12
 U 1 1 5BD4A881
 P 8450 2150
 F 0 "R12" H 8300 2208 70  0000 L BNN
@@ -718,7 +619,7 @@ Wire Wire Line
 Wire Wire Line
 	8450 3200 8450 2800
 Wire Wire Line
-	6850 3200 9700 3200
+	6850 3200 7900 3200
 Wire Wire Line
 	7900 3200 7900 3500
 Wire Wire Line
@@ -727,7 +628,7 @@ Connection ~ 7900 3200
 Text Label 8200 3500 0    60   ~ 0
 GND_I
 $Comp
-L Lamp_Neon NE2
+L 4DigitIN12-cache:Lamp_Neon NE2
 U 1 1 5BD4B3D7
 P 8450 1750
 F 0 "NE2" H 8475 1900 50  0000 L CNN
@@ -738,7 +639,7 @@ F 3 "" V 8450 1850 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L Lamp_Neon NE1
+L 4DigitIN12-cache:Lamp_Neon NE1
 U 1 1 5BD4B4BB
 P 6850 1750
 F 0 "NE1" H 6875 1900 50  0000 L CNN
@@ -751,7 +652,7 @@ $EndComp
 Wire Wire Line
 	6850 1550 6850 1350
 Wire Wire Line
-	6850 1350 8450 1350
+	6850 1350 7900 1350
 Wire Wire Line
 	8450 1350 8450 1550
 Wire Wire Line
@@ -762,7 +663,7 @@ Connection ~ 7900 1350
 Text Label 9350 1100 0    60   ~ 0
 170V_I
 $Comp
-L RCL_R-EU_0207/2V R9
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R9
 U 1 1 5BD54E86
 P 6300 2600
 F 0 "R9" H 6150 2658 70  0000 L BNN
@@ -777,7 +678,7 @@ Wire Wire Line
 Wire Wire Line
 	6500 2600 6550 2600
 $Comp
-L RCL_R-EU_0207/2V R11
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R11
 U 1 1 5BD555D9
 P 7900 2600
 F 0 "R11" H 7750 2658 70  0000 L BNN
@@ -794,11 +695,11 @@ Wire Wire Line
 Wire Wire Line
 	9700 2500 9850 2500
 Wire Wire Line
-	9700 2400 9700 2600
+	9700 2400 9700 2500
 Text Label 9850 2500 0    60   ~ 0
 DLS_I
 $Comp
-L R_PHOTO LDR1
+L 4DigitIN12-cache:R_PHOTO LDR1
 U 1 1 594E2512
 P 9700 2750
 F 0 "LDR1" H 9750 2800 50  0000 L CNN
@@ -814,12 +715,12 @@ Wire Wire Line
 Text Label 1900 3850 0    60   ~ 0
 GND_I
 $Comp
-L Conn_01x10 J2
+L 4DigitIN12-cache:Conn_01x10 J2
 U 1 1 5BD5A756
 P 10000 5600
 F 0 "J2" H 10000 6050 50  0000 C CNN
 F 1 "Conn_01x10" V 10000 5600 50  0000 C CNN
-F 2 "Pin_Headers:Pin_Header_Straight_1x10_Pitch2.54mm" H 10000 4400 50  0001 C CNN
+F 2 "NixieClockMaster:Header_MA10-1_narrow" H 10000 4400 50  0001 C CNN
 F 3 "" H 10000 4400 50  0001 C CNN
 	1    10000 5600
 	-1   0    0    1   
@@ -829,7 +730,7 @@ VCC_I
 Wire Wire Line
 	10200 5500 10600 5500
 $Comp
-L Jumper_NC_Dual JP1
+L 4DigitIN12Display-rescue:Jumper_NC_Dual JP1
 U 1 1 5BD5AF1B
 P 9150 1500
 F 0 "JP1" H 9200 1400 50  0000 L CNN
@@ -854,7 +755,7 @@ VCC_I
 Text Label 7550 1350 2    20   ~ 0
 SEP_VCC
 $Comp
-L RCL_R-EU_0207/2V R14
+L 4DigitIN12Display-rescue:RCL_R-EU_0207_2V R14
 U 1 1 5BDF52A8
 P 9700 2200
 F 0 "R14" H 9550 2258 70  0000 L BNN
@@ -866,7 +767,7 @@ F 3 "" H 9700 2200 60  0001 C CNN
 $EndComp
 Connection ~ 9700 2500
 Wire Wire Line
-	9150 1900 9900 1900
+	9150 1900 9700 1900
 Wire Wire Line
 	9700 1900 9700 2000
 Connection ~ 9700 1900
@@ -880,4 +781,86 @@ Wire Notes Line
 	4850 550  4850 4100
 Wire Notes Line
 	8050 4100 8050 6500
+Wire Wire Line
+	2750 1900 2750 2600
+Wire Wire Line
+	2750 2600 2750 3300
+Wire Wire Line
+	2750 1200 2750 1900
+Wire Wire Line
+	1450 5700 3050 5700
+Wire Wire Line
+	3050 5700 4650 5700
+Wire Wire Line
+	4650 5700 6250 5700
+Wire Wire Line
+	4750 5750 6350 5750
+Wire Wire Line
+	3150 5750 4750 5750
+Wire Wire Line
+	6350 5750 7600 5750
+Wire Wire Line
+	4850 5800 6450 5800
+Wire Wire Line
+	3250 5800 4850 5800
+Wire Wire Line
+	3350 5850 4950 5850
+Wire Wire Line
+	4950 5850 6550 5850
+Wire Wire Line
+	6550 5850 7600 5850
+Wire Wire Line
+	5050 5900 6650 5900
+Wire Wire Line
+	3450 5900 5050 5900
+Wire Wire Line
+	1850 5900 3450 5900
+Wire Wire Line
+	3550 5950 5150 5950
+Wire Wire Line
+	5150 5950 6750 5950
+Wire Wire Line
+	6750 5950 7600 5950
+Wire Wire Line
+	5250 6000 6850 6000
+Wire Wire Line
+	3650 6000 5250 6000
+Wire Wire Line
+	2050 6000 3650 6000
+Wire Wire Line
+	3750 6050 5350 6050
+Wire Wire Line
+	5350 6050 6950 6050
+Wire Wire Line
+	6950 6050 7600 6050
+Wire Wire Line
+	5450 6100 7050 6100
+Wire Wire Line
+	3850 6100 5450 6100
+Wire Wire Line
+	2250 6100 3850 6100
+Wire Wire Line
+	3950 6150 5550 6150
+Wire Wire Line
+	5550 6150 7150 6150
+Wire Wire Line
+	7150 6150 7600 6150
+Wire Wire Line
+	1800 2800 1800 3500
+Wire Wire Line
+	1800 2100 1800 2800
+Wire Wire Line
+	1800 3500 1950 3500
+Wire Wire Line
+	7900 3200 8450 3200
+Wire Wire Line
+	7900 1350 8450 1350
+Wire Wire Line
+	8450 3200 9700 3200
+Wire Wire Line
+	9700 2500 9700 2600
+Wire Wire Line
+	9700 1900 9900 1900
+Wire Wire Line
+	1650 5800 3250 5800
 $EndSCHEMATC
