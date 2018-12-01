@@ -1,0 +1,5 @@
+(fp_lib_table
+  (lib (name Recovered)(type KiCad)(uri "$(KIPRJMOD)/Recovered.pretty")(options "")(descr ""))
+  (lib (name russian-nixies)(type Legacy)(uri /home/ian/Dropbox/Shared/Nixie/KiCAD/lbr/russian-nixies.mod)(options "")(descr ""))
+  (lib (name nixies-us)(type Legacy)(uri /home/ian/Downloads/Eagle-and-KiCAD-Nixie-Libs-master/nixies-us.mod)(options "")(descr ""))
+)
