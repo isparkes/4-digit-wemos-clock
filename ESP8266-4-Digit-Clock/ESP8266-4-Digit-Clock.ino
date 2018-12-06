@@ -97,18 +97,17 @@ ESP8266WebServer server(80);
 #define LEDPin2     16    // D0
 #define DATA1Pin    13    // D7 - Grids
 
-
 //**********************************************************************************
 Transition transition(500, 1000, 3000);
 
-byte NumberArray[6]    = {0, 0, 0, 0, 0, 0};
-byte currNumberArray[6] = {0, 0, 0, 0, 0, 0};
-byte displayType[6]    = {FADE, FADE, FADE, FADE, FADE, FADE};
-byte fadeState[6]      = {0, 0, 0, 0, 0, 0};
+byte NumberArray[4]    = {0, 0, 0, 0};
+byte currNumberArray[4] = {0, 0, 0, 0};
+byte displayType[4]    = {FADE, FADE, FADE, FADE};
+byte fadeState[4]      = {0, 0, 0, 0};
 byte valueDisplayTime  = 0;
-byte valueToShow[3]    = {0, 0, 0};
-byte valueDisplayType[3] = {0x33, 0x33, 0x33}; // All normal by default
- 
+byte valueToShow[2]    = {0, 0};
+byte valueDisplayType[2] = {0x33, 0x33}; // All normal by default
+
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
 // 100 is about 1 second
 int fadeSteps = FADE_STEPS_DEFAULT;
@@ -206,12 +205,12 @@ byte cycleSpeed = CYCLE_SPEED_DEFAULT;
 int colors[3];
 
 // individual channel colours for the LEDs
-byte ledR[PixelCount];
-byte ledG[PixelCount];
-byte ledB[PixelCount];
+byte ledR[DIGIT_COUNT];
+byte ledG[DIGIT_COUNT];
+byte ledB[DIGIT_COUNT];
 
 // set up the NeoPixel library
-NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> leds(PixelCount, LED_DOUT);
+NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> leds(DIGIT_COUNT, LED_DOUT);
 
 // Strategy 3
 int changeSteps = 0;
@@ -489,7 +488,6 @@ void loop()
   if (button1.isButtonPressedReleased2S()) {
     currentMode = MODE_MIN;
 
-
     // Store the latest config if we exit the config mode
     saveConfigToSpiffs();
 
@@ -515,9 +513,9 @@ void loop()
 
   // ************* Process the modes *************
   if (nextMode != currentMode) {
-    setNextMode();
+    setNextMode(nextMode);
   } else {
-    processCurrentMode();
+    processCurrentMode(currentMode);
   }
 
   // get the LDR ambient light reading
@@ -583,7 +581,7 @@ void performOncePerSecondProcessing() {
       if (nativeBlanked)
         debugMsg(" -> Native");
     }
-      
+
     // reset the blanking period selection timer
     if (nowMillis > blankSuppressedSelectionTimoutMillis) {
       blankSuppressedSelectionTimoutMillis = 0;
@@ -781,7 +779,7 @@ void setLeds()
                     getLEDAdjusted(colors[2], 1, dimFactor));
         break;
       case BACKLIGHT_COLOUR_TIME:
-          for (int i = 0 ; i < 6 ; i++) {
+          for (int i = 0 ; i < DIGIT_COUNT ; i++) {
             ledR[5-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,1);
             ledG[5-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,1);
             ledB[5-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,1);
@@ -789,7 +787,7 @@ void setLeds()
           outputLEDBuffer();
         break;
       case BACKLIGHT_COLOUR_TIME_DIM:
-          for (int i = 0 ; i < 6 ; i++) {
+          for (int i = 0 ; i < DIGIT_COUNT ; i++) {
             ledR[5-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,dimFactor);
             ledG[5-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,dimFactor);
             ledB[5-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,dimFactor);
@@ -827,7 +825,7 @@ boolean checkPIR(unsigned long nowMillis) {
 // Set back light LEDs to the same colour
 // ************************************************************
 void setAllLEDs(byte red, byte green, byte blue) {
-  for (int i = 0 ; i < PixelCount ; i++) {
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
     ledR[i] = red;
     ledG[i] = green;
     ledB[i] = blue;
@@ -839,7 +837,7 @@ void setAllLEDs(byte red, byte green, byte blue) {
 // Put the led buffers out
 // ************************************************************
 void outputLEDBuffer() {
-  for (int i = 0 ; i < PixelCount ; i++) {
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
     RgbColor color(ledR[i], ledG[i], ledB[i]);
     leds.SetPixelColor(i, color);
   }
@@ -850,12 +848,12 @@ void outputLEDBuffer() {
 // Show the preview of the next mode - we stay in this mode until the 
 // button is released
 // ************************************************************
-void setNextMode() {
+void setNextMode(int displayMode) {
   // turn off blanking
   blanked = false;
   setTubesAndLEDSBlankMode();
 
-  switch (nextMode) {
+  switch (displayMode) {
     case MODE_TIME: {
         loadNumberArrayTime();
         allFadeOrNormal(APPLY_LEAD_0_BLANK);
@@ -863,13 +861,9 @@ void setNextMode() {
       }
     case MODE_HOURS_SET: {
         if (useWiFi > 0) {
-          // skip past the time settings
-          nextMode++;
-          currentMode++;
-          nextMode++;
-          currentMode++;
-          nextMode++;
-          currentMode++;
+          // skip past the time and date settings
+          nextMode += 6;
+          currentMode += 6;
         }
         loadNumberArrayTime();
         highlight0and1();
@@ -881,61 +875,52 @@ void setNextMode() {
         break;
       }
     case MODE_SECS_SET: {
-        loadNumberArrayTime();
-        highlight4and5();
+        loadNumberArrayMinsSecs();
+        highlight2and3();
         break;
       }
     case MODE_DAYS_SET: {
-        if (useWiFi > 0) {
-          // skip past the time settings
-          nextMode++;
-          currentMode++;
-          nextMode++;
-          currentMode++;
-          nextMode++;
-          currentMode++;
-        }
-        loadNumberArrayDate();
+        loadNumberArrayDayMonth();
         highlightDaysDateFormat();
         break;
       }
     case MODE_MONTHS_SET: {
-        loadNumberArrayDate();
+        loadNumberArrayDayMonth();
         highlightMonthsDateFormat();
         break;
       }
     case MODE_YEARS_SET: {
-        loadNumberArrayDate();
-        highlightYearsDateFormat();
+        loadNumberArrayYear();
+        highlight2and3();
         break;
       }
     case MODE_12_24: {
-        loadNumberArrayConfBool(hourMode, nextMode - MODE_12_24);
+        loadNumberArrayConfBool(hourMode, displayMode);
         displayConfig();
         break;
       }
     case MODE_LEAD_BLANK: {
-        loadNumberArrayConfBool(blankLeading, nextMode - MODE_12_24);
+        loadNumberArrayConfBool(blankLeading, displayMode);
         displayConfig();
         break;
       }
     case MODE_SCROLLBACK: {
-        loadNumberArrayConfBool(scrollback, nextMode - MODE_12_24);
+        loadNumberArrayConfBool(scrollback, displayMode);
         displayConfig();
         break;
       }
     case MODE_FADE: {
-        loadNumberArrayConfBool(fade, nextMode - MODE_12_24);
+        loadNumberArrayConfBool(fade, displayMode);
         displayConfig();
         break;
       }
     case MODE_DATE_FORMAT: {
-        loadNumberArrayConfInt(dateFormat, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(dateFormat, displayMode);
         displayConfig();
         break;
       }
     case MODE_DAY_BLANKING: {
-        loadNumberArrayConfInt(dayBlanking, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(dayBlanking, displayMode);
         displayConfig();
         break;
       }
@@ -948,50 +933,50 @@ void setNextMode() {
           currentMode++;
         }
 
-        loadNumberArrayConfInt(blankHourStart, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(blankHourStart, displayMode);
         displayConfig();
         break;
       }
     case MODE_HR_BLNK_END: {
-        loadNumberArrayConfInt(blankHourEnd, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(blankHourEnd, displayMode);
         displayConfig();
         break;
       }
     case MODE_BLANK_MODE: {
-        loadNumberArrayConfInt(blankMode, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(blankMode, displayMode);
         displayConfig();
         break;
       }
     case MODE_USE_LDR: {
-        loadNumberArrayConfBool(useLDR, nextMode - MODE_12_24);
+        loadNumberArrayConfBool(useLDR, displayMode);
         displayConfig();
         break;
       }
     case MODE_FADE_STEPS_UP:
     case MODE_FADE_STEPS_DOWN: {
-        loadNumberArrayConfInt(fadeSteps, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
         break;
       }
     case MODE_DISPLAY_SCROLL_STEPS_UP:
     case MODE_DISPLAY_SCROLL_STEPS_DOWN: {
-        loadNumberArrayConfInt(scrollSteps, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(scrollSteps, displayMode);
         displayConfig();
         break;
       }
     case MODE_PIR_TIMEOUT_UP:
     case MODE_PIR_TIMEOUT_DOWN: {
-        loadNumberArrayConfInt(pirTimeout, nextMode - MODE_12_24);
+        loadNumberArrayConfMode(displayMode);
         displayConfig();
         break;
       }
     case MODE_SLOTS_MODE: {
-        loadNumberArrayConfInt(slotsMode, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(slotsMode, displayMode);
         displayConfig();
         break;
       }
     case MODE_BACKLIGHT_MODE: {
-        loadNumberArrayConfInt(backlightMode, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(backlightMode, displayMode);
         displayConfig();
         break;
       }
@@ -1001,7 +986,7 @@ void setNextMode() {
           nextMode++;
           currentMode++;
         }
-        loadNumberArrayConfInt(redCnl, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(redCnl, displayMode);
         displayConfig();
         break;
       }
@@ -1011,7 +996,7 @@ void setNextMode() {
           nextMode++;
           currentMode++;
         }
-        loadNumberArrayConfInt(grnCnl, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(grnCnl, displayMode);
         displayConfig();
         break;
       }
@@ -1021,7 +1006,7 @@ void setNextMode() {
           nextMode++;
           currentMode++;
         }
-        loadNumberArrayConfInt(bluCnl, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(bluCnl, displayMode);
         displayConfig();
         break;
       }
@@ -1031,34 +1016,34 @@ void setNextMode() {
           nextMode++;
           currentMode++;
         }
-        loadNumberArrayConfInt(cycleSpeed, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(cycleSpeed, displayMode);
         displayConfig();
         break;
       }
     case MODE_MIN_DIM_UP:
     case MODE_MIN_DIM_DOWN: {
-        loadNumberArrayConfInt(minDim, nextMode - MODE_12_24);
+        loadNumberArrayConfMode(displayMode);
         displayConfig();
         break;
       }
     case MODE_ANTI_GHOST_UP:
     case MODE_ANTI_GHOST_DOWN: {
-        loadNumberArrayConfInt(antiGhost, nextMode - MODE_12_24);
+        loadNumberArrayConfMode(displayMode);
         displayConfig();
         break;
       }
     case MODE_USE_PIR_PULLUP: {
-        loadNumberArrayConfBool(usePIRPullup, nextMode - MODE_12_24);
+        loadNumberArrayConfBool(usePIRPullup, displayMode);
         displayConfig();
         break;
       }
     case MODE_LED_BLINK: {
-        loadNumberArrayConfInt(ledMode, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(ledMode, displayMode);
         displayConfig();
         break;
       }
     case MODE_VERSION: {
-        loadNumberArrayConfInt(SOFTWARE_VERSION, nextMode - MODE_12_24);
+        loadNumberArrayConfInt(SOFTWARE_VERSION, displayMode);
         displayConfig();
         break;
       }
@@ -1073,8 +1058,8 @@ void setNextMode() {
 // ************************************************************
 // Show the next mode - once the button is released
 // ************************************************************
-void processCurrentMode() {
-  switch (currentMode) {
+void processCurrentMode(int displayMode) {
+  switch (displayMode) {
     case MODE_TIME: {
         if (button1.isButtonPressedAndReleased()) {
           // Deal with blanking first
@@ -1119,7 +1104,7 @@ void processCurrentMode() {
           blanked = false;
           setTubesAndLEDSBlankMode();
           if (tempDisplayMode == TEMP_MODE_DATE) {
-            loadNumberArrayDate();
+            loadNumberArrayDayMonth();
           }
 
           if (tempDisplayMode == TEMP_MODE_LDR) {
@@ -1130,20 +1115,44 @@ void processCurrentMode() {
             loadNumberArrayConfInt(SOFTWARE_VERSION, 0);
           }
 
-          if (tempDisplayMode == TEMP_IP_ADDR12) {
+          if (tempDisplayMode == TEMP_IP_ADDR1) {
             if (useWiFi > 0) {
               IPAddress myIP = WiFi.localIP();
-              loadNumberArrayIP(myIP[0], myIP[1]);
+              loadNumberArrayIP(myIP[0]);
+              showDisplayIP();
             } else {
               // we can't show the IP address if we have the RTC, just skip
               tempDisplayMode++;
             }
           }
 
-          if (tempDisplayMode == TEMP_IP_ADDR34) {
+          if (tempDisplayMode == TEMP_IP_ADDR2) {
             if (useWiFi > 0) {
               IPAddress myIP = WiFi.localIP();
-              loadNumberArrayIP(myIP[2], myIP[3]);
+              loadNumberArrayIP(myIP[1]);
+              showDisplayIP();
+            } else {
+              // we can't show the IP address if we have the RTC, just skip
+              tempDisplayMode++;
+            }
+          }
+
+          if (tempDisplayMode == TEMP_IP_ADDR3) {
+            if (useWiFi > 0) {
+              IPAddress myIP = WiFi.localIP();
+              loadNumberArrayIP(myIP[2]);
+              showDisplayIP();
+            } else {
+              // we can't show the IP address if we have the RTC, just skip
+              tempDisplayMode++;
+            }
+          }
+
+          if (tempDisplayMode == TEMP_IP_ADDR4) {
+            if (useWiFi > 0) {
+              IPAddress myIP = WiFi.localIP();
+              loadNumberArrayIP(myIP[3]);
+              showDisplayIP();
             } else {
               // we can't show the IP address if we have the RTC, just skip
               tempDisplayMode++;
@@ -1161,7 +1170,7 @@ void processCurrentMode() {
             if (second() == 50) {
 
               // initialise the slots values
-              loadNumberArrayDate();
+              loadNumberArrayDayMonth();
               transition.setAlternateValues();
               loadNumberArrayTime();
               transition.setRegularValues();
@@ -1208,6 +1217,19 @@ void processCurrentMode() {
         }
         break;
       }
+    case MODE_HOURS_SET: {
+        if (useWiFi > 0) {
+          // skip past the time and date settings
+          nextMode += 6;
+          currentMode += 6;
+        }
+        if (button1.isButtonPressedAndReleased()) {
+          incHours();
+        }
+        loadNumberArrayTime();
+        highlight0and1();
+        break;
+      }
     case MODE_MINS_SET: {
         if (button1.isButtonPressedAndReleased()) {
           incMins();
@@ -1216,27 +1238,19 @@ void processCurrentMode() {
         highlight2and3();
         break;
       }
-    case MODE_HOURS_SET: {
-        if (button1.isButtonPressedAndReleased()) {
-          incHours();
-        }
-        loadNumberArrayTime();
-        highlight0and1();
-        break;
-      }
     case MODE_SECS_SET: {
         if (button1.isButtonPressedAndReleased()) {
           resetSecond();
         }
-        loadNumberArrayTime();
-        highlight4and5();
+        loadNumberArrayMinsSecs();
+        highlight2and3();
         break;
       }
     case MODE_DAYS_SET: {
         if (button1.isButtonPressedAndReleased()) {
           incDays();
         }
-        loadNumberArrayDate();
+        loadNumberArrayDayMonth();
         highlightDaysDateFormat();
         break;
       }
@@ -1244,7 +1258,7 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           incMonths();
         }
-        loadNumberArrayDate();
+        loadNumberArrayDayMonth();
         highlightMonthsDateFormat();
         break;
       }
@@ -1252,15 +1266,15 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           incYears();
         }
-        loadNumberArrayDate();
-        highlightYearsDateFormat();
+        loadNumberArrayYear();
+        highlight2and3();
         break;
       }
     case MODE_12_24: {
         if (button1.isButtonPressedAndReleased()) {
           hourMode = ! hourMode;
         }
-        loadNumberArrayConfBool(hourMode, currentMode - MODE_12_24);
+        loadNumberArrayConfBool(hourMode, displayMode);
         displayConfig();
         break;
       }
@@ -1268,7 +1282,7 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           blankLeading = !blankLeading;
         }
-        loadNumberArrayConfBool(blankLeading, currentMode - MODE_12_24);
+        loadNumberArrayConfBool(blankLeading, displayMode);
         displayConfig();
         break;
       }
@@ -1276,7 +1290,7 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           scrollback = !scrollback;
         }
-        loadNumberArrayConfBool(scrollback, currentMode - MODE_12_24);
+        loadNumberArrayConfBool(scrollback, displayMode);
         displayConfig();
         break;
       }
@@ -1284,7 +1298,7 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           fade = !fade;
         }
-        loadNumberArrayConfBool(fade, currentMode - MODE_12_24);
+        loadNumberArrayConfBool(fade, displayMode);
         displayConfig();
         break;
       }
@@ -1295,7 +1309,7 @@ void processCurrentMode() {
             dateFormat = DATE_FORMAT_MIN;
           }
         }
-        loadNumberArrayConfInt(dateFormat, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(dateFormat, displayMode);
         displayConfig();
         break;
       }
@@ -1306,7 +1320,7 @@ void processCurrentMode() {
             dayBlanking = DAY_BLANKING_MIN;
           }
         }
-        loadNumberArrayConfInt(dayBlanking, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(dayBlanking, displayMode);
         displayConfig();
         break;
       }
@@ -1317,7 +1331,7 @@ void processCurrentMode() {
             blankHourStart = 0;
           }
         }
-        loadNumberArrayConfInt(blankHourStart, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(blankHourStart, displayMode);
         displayConfig();
         break;
       }
@@ -1328,7 +1342,7 @@ void processCurrentMode() {
             blankHourEnd = 0;
           }
         }
-        loadNumberArrayConfInt(blankHourEnd, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(blankHourEnd, displayMode);
         displayConfig();
         break;
       }
@@ -1339,7 +1353,7 @@ void processCurrentMode() {
             blankMode = BLANK_MODE_MIN;
           }
         }
-        loadNumberArrayConfInt(blankMode, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(blankMode, displayMode);
         displayConfig();
         break;
       }
@@ -1347,7 +1361,7 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           useLDR = !useLDR;
         }
-        loadNumberArrayConfBool(useLDR, currentMode - MODE_12_24);
+        loadNumberArrayConfBool(useLDR, displayMode);
         displayConfig();
         break;
       }
@@ -1358,7 +1372,7 @@ void processCurrentMode() {
             fadeSteps = FADE_STEPS_MIN;
           }
         }
-        loadNumberArrayConfInt(fadeSteps, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
         fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
         break;
@@ -1370,7 +1384,7 @@ void processCurrentMode() {
             fadeSteps = FADE_STEPS_MAX;
           }
         }
-        loadNumberArrayConfInt(fadeSteps, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
         fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
         break;
@@ -1382,7 +1396,7 @@ void processCurrentMode() {
             scrollSteps = SCROLL_STEPS_MAX;
           }
         }
-        loadNumberArrayConfInt(scrollSteps, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(scrollSteps, displayMode);
         displayConfig();
         break;
       }
@@ -1393,7 +1407,7 @@ void processCurrentMode() {
             scrollSteps = SCROLL_STEPS_MIN;
           }
         }
-        loadNumberArrayConfInt(scrollSteps, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(scrollSteps, displayMode);
         displayConfig();
         break;
       }
@@ -1404,7 +1418,7 @@ void processCurrentMode() {
             pirTimeout = PIR_TIMEOUT_MAX;
           }
         }
-        loadNumberArrayConfInt(pirTimeout, currentMode - MODE_12_24);
+        loadNumberArrayConfIntWide(pirTimeout);
         displayConfig();
         break;
       }
@@ -1415,7 +1429,7 @@ void processCurrentMode() {
             pirTimeout = PIR_TIMEOUT_MIN;
           }
         }
-        loadNumberArrayConfInt(pirTimeout, currentMode - MODE_12_24);
+        loadNumberArrayConfIntWide(pirTimeout);
         displayConfig();
         break;
       }
@@ -1426,7 +1440,7 @@ void processCurrentMode() {
             slotsMode = SLOTS_MODE_MIN;
           }
         }
-        loadNumberArrayConfInt(slotsMode, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(slotsMode, displayMode);
         displayConfig();
         break;
       }
@@ -1437,7 +1451,7 @@ void processCurrentMode() {
             backlightMode = BACKLIGHT_MIN;
           }
         }
-        loadNumberArrayConfInt(backlightMode, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(backlightMode, displayMode);
         displayConfig();
         break;
       }
@@ -1454,7 +1468,7 @@ void processCurrentMode() {
             redCnl = COLOUR_CNL_MIN;
           }
         }
-        loadNumberArrayConfInt(redCnl, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(redCnl, displayMode);
         displayConfig();
         break;
       }
@@ -1471,7 +1485,7 @@ void processCurrentMode() {
             grnCnl = COLOUR_CNL_MIN;
           }
         }
-        loadNumberArrayConfInt(grnCnl, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(grnCnl, displayMode);
         displayConfig();
         break;
       }
@@ -1488,7 +1502,7 @@ void processCurrentMode() {
             bluCnl = COLOUR_CNL_MIN;
           }
         }
-        loadNumberArrayConfInt(bluCnl, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(bluCnl, displayMode);
         displayConfig();
         break;
       }
@@ -1505,7 +1519,7 @@ void processCurrentMode() {
             cycleSpeed = CYCLE_SPEED_MIN;
           }
         }
-        loadNumberArrayConfInt(cycleSpeed, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(cycleSpeed, displayMode);
         displayConfig();
         break;
       }
@@ -1516,7 +1530,7 @@ void processCurrentMode() {
             minDim = MIN_DIM_MAX;
           }
         }
-        loadNumberArrayConfInt(minDim, currentMode - MODE_12_24);
+        loadNumberArrayConfIntWide(minDim);
         displayConfig();
         break;
       }
@@ -1527,7 +1541,7 @@ void processCurrentMode() {
             minDim = MIN_DIM_MIN;
           }
         }
-        loadNumberArrayConfInt(minDim, currentMode - MODE_12_24);
+        loadNumberArrayConfIntWide(minDim);
         displayConfig();
         break;
       }
@@ -1539,7 +1553,7 @@ void processCurrentMode() {
           }
           dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
         }
-        loadNumberArrayConfInt(antiGhost, currentMode - MODE_12_24);
+        loadNumberArrayConfIntWide(antiGhost);
         displayConfig();
         break;
       }
@@ -1551,7 +1565,7 @@ void processCurrentMode() {
           }
           dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
         }
-        loadNumberArrayConfInt(antiGhost, currentMode - MODE_12_24);
+        loadNumberArrayConfIntWide(antiGhost);
         displayConfig();
         break;
       }
@@ -1559,7 +1573,7 @@ void processCurrentMode() {
         if (button1.isButtonPressedAndReleased()) {
           usePIRPullup = !usePIRPullup;
         }
-        loadNumberArrayConfBool(usePIRPullup, currentMode - MODE_12_24);
+        loadNumberArrayConfBool(usePIRPullup, displayMode);
         digitalWrite(pirPin, usePIRPullup);
         displayConfig();
         break;
@@ -1571,12 +1585,12 @@ void processCurrentMode() {
             ledMode = LED_MODE_MIN;
           }
         }
-        loadNumberArrayConfInt(ledMode, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(ledMode, displayMode);
         displayConfig();
         break;
       }
     case MODE_VERSION: {
-        loadNumberArrayConfInt(SOFTWARE_VERSION, currentMode - MODE_12_24);
+        loadNumberArrayConfInt(SOFTWARE_VERSION, displayMode);
         displayConfig();
         break;
       }
@@ -1669,8 +1683,6 @@ void cycleColours3(int colors[3]) {
 // Break the time into displayable digits
 // ************************************************************
 void loadNumberArrayTime() {
-  NumberArray[5] = second() % 10;
-  NumberArray[4] = second() / 10;
   NumberArray[3] = minute() % 10;
   NumberArray[2] = minute() / 10;
   if (hourMode) {
@@ -1682,54 +1694,26 @@ void loadNumberArrayTime() {
   }
 }
 
-// ************************************************************
-// Show the value we got over I2C
-// ************************************************************
-void loadNumberArrayValue() {
-  NumberArray[5] = valueToShow[2] & 0xf;
-  NumberArray[4] = valueToShow[2] >> 4;
-  NumberArray[3] = valueToShow[1] & 0xf;
-  NumberArray[2] = valueToShow[1] >> 4;
-  NumberArray[1] = valueToShow[0] & 0xf;
-  NumberArray[0] = valueToShow[0] >> 4;
+void loadNumberArrayMinsSecs() {
+  NumberArray[3] = second() % 10;
+  NumberArray[2] = second() / 10;
+  NumberArray[1] = minute() % 10;
+  NumberArray[0] = minute() / 10;
 }
 
 // ************************************************************
-// Break the time into displayable digits
+// Break the date into displayable digits, respecting date format
 // ************************************************************
-void loadNumberArraySameValue(byte val) {
-  NumberArray[5] = val;
-  NumberArray[4] = val;
-  NumberArray[3] = val;
-  NumberArray[2] = val;
-  NumberArray[1] = val;
-  NumberArray[0] = val;
-}
-
-// ************************************************************
-// Break the time into displayable digits
-// ************************************************************
-void loadNumberArrayDate() {
+void loadNumberArrayDayMonth() {
   switch (dateFormat) {
     case DATE_FORMAT_YYMMDD:
-      NumberArray[5] = day() % 10;
-      NumberArray[4] = day() / 10;
-      NumberArray[3] = month() % 10;
-      NumberArray[2] = month() / 10;
-      NumberArray[1] = (year() - 2000) % 10;
-      NumberArray[0] = (year() - 2000) / 10;
-      break;
     case DATE_FORMAT_MMDDYY:
-      NumberArray[5] = (year() - 2000) % 10;
-      NumberArray[4] = (year() - 2000) / 10;
       NumberArray[3] = day() % 10;
       NumberArray[2] = day() / 10;
       NumberArray[1] = month() % 10;
       NumberArray[0] = month() / 10;
       break;
     case DATE_FORMAT_DDMMYY:
-      NumberArray[5] = (year() - 2000) % 10;
-      NumberArray[4] = (year() - 2000) / 10;
       NumberArray[3] = month() % 10;
       NumberArray[2] = month() / 10;
       NumberArray[1] = day() % 10;
@@ -1739,12 +1723,19 @@ void loadNumberArrayDate() {
 }
 
 // ************************************************************
+// Break the year into displayable digits
+// ************************************************************
+void loadNumberArrayYear() {
+  NumberArray[3] = (year() / 1) % 10;
+  NumberArray[2] = (year() / 10) % 10;
+  NumberArray[1] = (year() / 100) % 10;
+  NumberArray[0] = (year() / 1000) % 10;
+}
+
+// ************************************************************
 // Break the LDR reading into displayable digits
 // ************************************************************
 void loadNumberArrayLDR() {
-  NumberArray[5] = 0;
-  NumberArray[4] = 0;
-
   NumberArray[3] = (digitOffCount / 1) % 10;
   NumberArray[2] = (digitOffCount / 10) % 10;
   NumberArray[1] = (digitOffCount / 100) % 10;
@@ -1755,8 +1746,6 @@ void loadNumberArrayLDR() {
 // Test digits
 // ************************************************************
 void loadNumberArrayTestDigits() {
-  NumberArray[5] = second() % 10;
-  NumberArray[4] = second() % 10;
   NumberArray[3] = second() % 10;
   NumberArray[2] = second() % 10;
   NumberArray[1] = second() % 10;
@@ -1766,9 +1755,17 @@ void loadNumberArrayTestDigits() {
 // ************************************************************
 // Show an integer configuration value
 // ************************************************************
-void loadNumberArrayConfInt(int confValue, int confNum) {
-  NumberArray[5] = (confNum) % 10;
-  NumberArray[4] = (confNum / 10) % 10;
+void loadNumberArrayConfInt(int confValue, byte mode) {
+  NumberArray[3] = (confValue / 1) % 10;
+  NumberArray[2] = (confValue / 10) % 10;
+  NumberArray[1] = mode % 10;
+  NumberArray[0] = mode / 10;
+}
+
+// ************************************************************
+// Show an integer configuration value, use all 4 digits
+// ************************************************************
+void loadNumberArrayConfIntWide(int confValue) {
   NumberArray[3] = (confValue / 1) % 10;
   NumberArray[2] = (confValue / 10) % 10;
   NumberArray[1] = (confValue / 100) % 10;
@@ -1776,33 +1773,69 @@ void loadNumberArrayConfInt(int confValue, int confNum) {
 }
 
 // ************************************************************
+// Show an configuration mode value
+// ************************************************************
+void loadNumberArrayConfMode(byte mode) {
+  NumberArray[3] = (mode / 1) % 10;
+  NumberArray[2] = (mode / 10) % 10;
+  NumberArray[1] = 0;
+  NumberArray[0] = 0;
+}
+
+// ************************************************************
 // Show a boolean configuration value
 // ************************************************************
-void loadNumberArrayConfBool(boolean confValue, int confNum) {
+void loadNumberArrayConfBool(boolean confValue, byte mode) {
   int boolInt;
   if (confValue) {
     boolInt = 1;
   } else {
     boolInt = 0;
   }
-  NumberArray[5] = (confNum) % 10;
-  NumberArray[4] = (confNum / 10) % 10;
   NumberArray[3] = boolInt;
   NumberArray[2] = 0;
-  NumberArray[1] = 0;
+  NumberArray[1] = mode % 10;
+  NumberArray[0] = mode / 10;
+}
+
+// ************************************************************
+// Show an 1/4 IP configuration value
+// ************************************************************
+void loadNumberArrayIP(byte byte1) {
+  NumberArray[3] = (byte1) % 10;
+  NumberArray[2] = (byte1 / 10) % 10;
+  NumberArray[1] = (byte1 / 100) % 10;
   NumberArray[0] = 0;
 }
 
 // ************************************************************
-// Show an integer configuration value
+// Show the same value on all digits
 // ************************************************************
-void loadNumberArrayIP(byte byte1, byte byte2) {
-  NumberArray[5] = (byte2) % 10;
-  NumberArray[4] = (byte2 / 10) % 10;
-  NumberArray[3] = (byte2 / 100) % 10;
-  NumberArray[2] = (byte1) % 10;
-  NumberArray[1] = (byte1 / 10) % 10;
-  NumberArray[0] = (byte1 / 100) % 10;
+void loadNumberArraySameValue(byte val) {
+  NumberArray[3] = val;
+  NumberArray[2] = val;
+  NumberArray[1] = val;
+  NumberArray[0] = val;
+}
+
+// ************************************************************
+// Show the value we got over I2C
+// ************************************************************
+void loadNumberArrayValue() {
+  NumberArray[3] = valueToShow[1] & 0xf;
+  NumberArray[2] = valueToShow[1] >> 4;
+  NumberArray[1] = valueToShow[0] & 0xf;
+  NumberArray[0] = valueToShow[0] >> 4;
+}
+
+// ************************************************************
+// Display preset
+// ************************************************************
+void loadDisplayConfigValue() {
+  displayType[0] = valueDisplayType[0] >> 4;
+  displayType[1] = valueDisplayType[0] & 0xf;
+  displayType[2] = valueDisplayType[1] >> 4;
+  displayType[3] = valueDisplayType[1] & 0xf;
 }
 
 // ************************************************************
@@ -1822,7 +1855,7 @@ void outputDisplay()
   // used to blank all leading digits if 0
   boolean leadingZeros = true;
 
-  for ( int i = 0 ; i < PixelCount ; i ++ )
+  for ( int i = 0 ; i < DIGIT_COUNT ; i ++ )
   {
     if (blankTubes) {
       tmpDispType = BLANKED;
@@ -2043,8 +2076,6 @@ void allFade() {
   if (displayType[1] != FADE) displayType[1] = FADE;
   if (displayType[2] != FADE) displayType[2] = FADE;
   if (displayType[3] != FADE) displayType[3] = FADE;
-  if (displayType[4] != FADE) displayType[4] = FADE;
-  if (displayType[5] != FADE) displayType[5] = FADE;
 }
 
 // ************************************************************
@@ -2055,29 +2086,10 @@ void allBright() {
   if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
   if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
   if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
-  if (displayType[4] != BRIGHT) displayType[4] = BRIGHT;
-  if (displayType[5] != BRIGHT) displayType[5] = BRIGHT;
 }
 
 // ************************************************************
-// highlight years taking into account the date format
-// ************************************************************
-void highlightYearsDateFormat() {
-  switch (dateFormat) {
-    case DATE_FORMAT_YYMMDD:
-      highlight0and1();
-      break;
-    case DATE_FORMAT_MMDDYY:
-      highlight4and5();
-      break;
-    case DATE_FORMAT_DDMMYY:
-      highlight4and5();
-      break;
-  }
-}
-
-// ************************************************************
-// highlight years taking into account the date format
+// highlight months taking into account the date format
 // ************************************************************
 void highlightMonthsDateFormat() {
   switch (dateFormat) {
@@ -2099,7 +2111,7 @@ void highlightMonthsDateFormat() {
 void highlightDaysDateFormat() {
   switch (dateFormat) {
     case DATE_FORMAT_YYMMDD:
-      highlight4and5();
+      highlight0and1();
       break;
     case DATE_FORMAT_MMDDYY:
       highlight2and3();
@@ -2118,8 +2130,6 @@ void highlight0and1() {
   if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
   if (displayType[2] != DIMMED) displayType[2] = DIMMED;
   if (displayType[3] != DIMMED) displayType[3] = DIMMED;
-  if (displayType[4] != DIMMED) displayType[4] = DIMMED;
-  if (displayType[5] != DIMMED) displayType[5] = DIMMED;
 }
 
 // ************************************************************
@@ -2130,20 +2140,6 @@ void highlight2and3() {
   if (displayType[1] != DIMMED) displayType[1] = DIMMED;
   if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
   if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
-  if (displayType[4] != DIMMED) displayType[4] = DIMMED;
-  if (displayType[5] != DIMMED) displayType[5] = DIMMED;
-}
-
-// ************************************************************
-// Display preset, highlight digits 4 and 5
-// ************************************************************
-void highlight4and5() {
-  if (displayType[0] != DIMMED) displayType[0] = DIMMED;
-  if (displayType[1] != DIMMED) displayType[1] = DIMMED;
-  if (displayType[2] != DIMMED) displayType[2] = DIMMED;
-  if (displayType[3] != DIMMED) displayType[3] = DIMMED;
-  if (displayType[4] != BRIGHT) displayType[4] = BRIGHT;
-  if (displayType[5] != BRIGHT) displayType[5] = BRIGHT;
 }
 
 // ************************************************************
@@ -2154,8 +2150,6 @@ void allNormal() {
   if (displayType[1] != NORMAL) displayType[1] = NORMAL;
   if (displayType[2] != NORMAL) displayType[2] = NORMAL;
   if (displayType[3] != NORMAL) displayType[3] = NORMAL;
-  if (displayType[4] != NORMAL) displayType[4] = NORMAL;
-  if (displayType[5] != NORMAL) displayType[5] = NORMAL;
 }
 
 // ************************************************************
@@ -2166,8 +2160,6 @@ void displayConfig() {
   if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
   if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
   if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
-  if (displayType[4] != BLINK)  displayType[4] = BLINK;
-  if (displayType[5] != BLINK)  displayType[5] = BLINK;
 }
 
 // ************************************************************
@@ -2178,8 +2170,6 @@ void displayConfig3() {
   if (displayType[1] != NORMAL) displayType[1] = BRIGHT;
   if (displayType[2] != NORMAL) displayType[2] = BRIGHT;
   if (displayType[3] != NORMAL) displayType[3] = BRIGHT;
-  if (displayType[4] != BLINK)  displayType[4] = BLINK;
-  if (displayType[5] != BLINK)  displayType[5] = BLINK;
 }
 
 // ************************************************************
@@ -2190,8 +2180,6 @@ void displayConfig2() {
   if (displayType[1] != BLANKED) displayType[1] = BLANKED;
   if (displayType[2] != NORMAL) displayType[2] = BRIGHT;
   if (displayType[3] != NORMAL) displayType[3] = BRIGHT;
-  if (displayType[4] != BLINK)  displayType[4] = BLINK;
-  if (displayType[5] != BLINK)  displayType[5] = BLINK;
 }
 
 // ************************************************************
@@ -2202,20 +2190,26 @@ void allBlanked() {
   if (displayType[1] != BLANKED) displayType[1] = BLANKED;
   if (displayType[2] != BLANKED) displayType[2] = BLANKED;
   if (displayType[3] != BLANKED) displayType[3] = BLANKED;
-  if (displayType[4] != BLANKED) displayType[4] = BLANKED;
-  if (displayType[5] != BLANKED) displayType[5] = BLANKED;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
-void loadDisplayConfigValue() {
-  displayType[5] = valueDisplayType[2] & 0xf;
-  displayType[4] = valueDisplayType[2] >> 4;
-  displayType[3] = valueDisplayType[1] & 0xf;
-  displayType[2] = valueDisplayType[1] >> 4;
-  displayType[1] = valueDisplayType[0] & 0xf;
-  displayType[0] = valueDisplayType[0] >> 4;
+void confBlink() {
+  if (displayType[0] != BLINK) displayType[0] = BLINK;
+  if (displayType[1] != BLINK) displayType[1] = BLINK;
+  if (displayType[2] != BLINK) displayType[2] = BLINK;
+  if (displayType[3] != BLINK) displayType[3] = BLINK;
+}
+
+// ************************************************************
+// Display preset
+// ************************************************************
+void showDisplayIP() {
+  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
+  if (displayType[1] != FADE) displayType[1] = FADE;
+  if (displayType[2] != FADE) displayType[2] = FADE;
+  if (displayType[3] != FADE) displayType[3] = FADE;
 }
 
 // ************************************************************
@@ -2227,7 +2221,7 @@ void resetSecond() {
   setRTCTime();
 }
 
-// ************************************************************
+  // ************************************************************
 // increment the time by 1 Sec
 // ************************************************************
 void incSecond() {
@@ -2446,6 +2440,14 @@ void randomRGBFlash(int delayVal) {
   delay(delayVal);
 }
 
+// ************************************************************
+// Tell the Diag LED that we have connected
+// ************************************************************
+void configModeCallback (WiFiManager *myWiFiManager) {
+  debugMsg("*** Entered config mode");
+  setDiagnosticLED(DIAGS_WIFI,STATUS_BLUE);
+}
+
 //**********************************************************************************
 //**********************************************************************************
 //*                         RTC Module Time Provider                               *
@@ -2494,7 +2496,7 @@ void setRTCTime() {
     Clock.fillByYMD(year()%100,month(),day());
     Clock.fillByHMS(hour(),minute(),second());
     Clock.setTime();
-    
+
     debugMsg("Set RTC time to Net time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
   }
 }
@@ -2524,7 +2526,7 @@ int getDimmingFromLDR() {
     if (rawLDR < 100) rawLDR = 100;
     if (rawLDR > 1000) rawLDR = 1000;
     int rawSensorVal = 1100 - rawLDR;
-    
+
     double sensorDiff = rawSensorVal - sensorLDRSmoothed;
     sensorLDRSmoothed += (sensorDiff / sensorSmoothCountLDR);
 
@@ -2568,7 +2570,7 @@ boolean getConfigFromSpiffs() {
         JsonObject& json = jsonBuffer.parseObject(buf.get());
         json.printTo(Serial);
         debugMsg("\n");
-        
+
         if (json.success()) {
           debugMsg("parsed json");
 
@@ -2579,82 +2581,82 @@ boolean getConfigFromSpiffs() {
 
           hourMode = json["hourMode"].as<bool>();
           debugMsg("Loaded 12/24H mode: " + String(hourMode));
-          
+
           blankLeading = json["blankLeading"].as<bool>();
           debugMsg("Loaded lead zero blanking: " + String(blankLeading));
-          
+
           scrollback = json["scrollback"].as<bool>();
           debugMsg("Loaded ScrollBack mode: " + String(scrollback));
-          
+
           fade = json["fade"].as<bool>();
           debugMsg("Loaded Fade mode: " + String(fade));
-          
+
           fadeSteps = json["fadeSteps"];
           debugMsg("Loaded Fade Steps mode: " + String(fadeSteps));
-          
+
           dateFormat = json["dateFormat"];
           debugMsg("Loaded date format: " + String(dateFormat));
-          
+
           dimDark = json["dimDark"];
           debugMsg("Loaded dimDark: " + String(dimDark));
-          
+
           scrollSteps = json["scrollSteps"];
           debugMsg("Loaded scroll steps: " + String(scrollSteps));
-          
+
           dimBright = json["dimBright"];
           debugMsg("Loaded dimBright: " + String(dimBright));
-          
+
           sensorSmoothCountLDR = json["sensorSmoothCountLDR"];
           debugMsg("Loaded sensorSmoothCountLDR: " + String(sensorSmoothCountLDR));
-          
+
           backlightMode = json["backlightMode"];
           debugMsg("Loaded backlight mode: " + String(backlightMode));
-          
+
           redCnl = json["redCnl"];
           debugMsg("Loaded redCnl: " + String(redCnl));
-          
+
           grnCnl = json["grnCnl"];
           debugMsg("Loaded grnCnl: " + String(grnCnl));
-          
+
           bluCnl = json["bluCnl"];
           debugMsg("Loaded bluCnl: " + String(bluCnl));
-          
+
           blankHourStart = json["blankHourStart"];
           debugMsg("Loaded blankHourStart: " + String(blankHourStart));
-          
+
           blankHourEnd = json["blankHourEnd"];
           debugMsg("Loaded blankHourEnd: " + String(blankHourEnd));
-          
+
           cycleSpeed = json["cycleSpeed"];
           debugMsg("Loaded cycleSpeed: " + String(cycleSpeed));
-          
+
           minDim = json["minDim"];
           debugMsg("Loaded minDim: " + String(minDim));
-          
+
           antiGhost = json["antiGhost"];
           debugMsg("Loaded antiGhost: " + String(antiGhost));
-          
+
           pirTimeout = json["pirTimeout"];
           debugMsg("Loaded pirTimeout: " + String(pirTimeout));
-          
+
           useLDR = json["useLDR"];
           debugMsg("Loaded useLDR: " + String(useLDR));
-          
+
           blankMode = json["blankMode"];
           debugMsg("Loaded blankMode: " + String(blankMode));
-          
+
           slotsMode = json["slotsMode"];
           debugMsg("Loaded slotsMode: " + String(slotsMode));
-          
+
           usePIRPullup = json["usePIRPullup"];
           debugMsg("Loaded usePIRPullup: " + String(usePIRPullup));
-          
+
           testMode = json["testMode"].as<bool>();
           debugMsg("Loaded testMode: " + String(testMode));
-          
+
           ledMode = json["ledMode"];
           debugMsg("Loaded ledMode: " + String(ledMode));
-          
+
           loaded = true;
         } else {
           debugMsg("failed to load json config");
@@ -2675,7 +2677,7 @@ void saveConfigToSpiffs() {
   if (SPIFFS.begin()) {
     debugMsg("mounted file system");
     debugMsg("saving config");
-    
+
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
     json["time_zone"] = timeServerURL;
@@ -2716,7 +2718,7 @@ void saveConfigToSpiffs() {
 
     json.printTo(Serial);
     debugMsg("\n");
-  
+
     json.printTo(configFile);
     configFile.close();
     debugMsg("Saved config");
@@ -2776,7 +2778,7 @@ void saveStatsToSpiffs() {
   if (SPIFFS.begin()) {
     debugMsg("mounted file system");
     debugMsg("saving stats");
-    
+
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
     json.set("uptime", uptimeMins);
@@ -2791,7 +2793,7 @@ void saveStatsToSpiffs() {
 
     json.printTo(Serial);
     debugMsg("\n");
-  
+
     json.printTo(statsFile);
     statsFile.close();
     debugMsg("Saved stats");
@@ -2838,7 +2840,6 @@ void factoryReset() {
 
   saveConfigToSpiffs();
 }
-
 
 //**********************************************************************************
 //**********************************************************************************
@@ -3492,7 +3493,7 @@ void clockConfigPageHandler() {
   response_message += getHTMLFoot();
 
   server.send(200, "text/html", response_message);
-  
+
   digitalWrite(BUILTIN_LED_PIN, false);
   debugMsg("Config page out");
 }
@@ -3507,25 +3508,22 @@ void setDisplayValuePageHandler() {
   String resultMessage;
   byte timeValue = 0xff;
   boolean argsValid = false;
-  
+
   if (server.hasArg("value"))
   {
     debugMsg("Got server arg value: " + server.arg("value"));
     long valueToSend = atol(server.arg("value").c_str());
-    byte val2 = hex2bcd(valueToSend % 100);
-    valueToSend = valueToSend / 100;
     byte val1 = hex2bcd(valueToSend % 100);
     valueToSend = valueToSend / 100;
     byte val0 = hex2bcd(valueToSend % 100);
 
     valueToShow[0] = val0;
     valueToShow[1] = val1;
-    valueToShow[2] = val2;
 
     resultMessage += "Set Value  ";
     argsValid = true;
   }
-  
+
   if (server.hasArg("time"))
   {
     debugMsg("Got time");
@@ -3539,7 +3537,7 @@ void setDisplayValuePageHandler() {
       resultMessage += "Set Time  ";
     }
   };
-  
+
   if (server.hasArg("format"))
   {
     debugMsg("Got format");
@@ -3554,10 +3552,10 @@ void setDisplayValuePageHandler() {
     valueDisplayType[0] = val0;
     valueDisplayType[1] = val1;
     valueDisplayType[2] = val2;
-    
+
     resultMessage += "Set Format  ";
   };
-  
+
   String response_message = getHTMLHead();
   response_message += getNavBar();
 
@@ -3593,7 +3591,7 @@ unsigned char hex2bcd (unsigned char x)
 void handleNotFound() {
   debugMsg("404 page in");
   digitalWrite(BUILTIN_LED_PIN, true);
-  
+
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -3609,7 +3607,7 @@ void handleNotFound() {
   }
 
   server.send(404, "text/plain", message);
-  
+
   digitalWrite(BUILTIN_LED_PIN, false);
   debugMsg("404 page out");
 }
@@ -3659,13 +3657,13 @@ String getTimeFromTimeZoneServer() {
       // ESP error codes have a string mapping
       payload = "ERROR: " + String(httpCode) + " ("+ http.errorToString(httpCode) + ")";
     }
-  }    
+  }
 
   http.end();
 
   digitalWrite(BUILTIN_LED_PIN, false);
   debugMsg("Get Time out");
-  
+
   return payload;
 }
 
@@ -3936,7 +3934,7 @@ String getSubmitButton(String buttonText) {
  * state: 0 = red, 1 = orange, 2 = green, 3 = blue
  */
 void setDiagnosticLED(byte stepNumber, byte state) {
-  for (int i = 0 ; i < PixelCount ; i++) {
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
     if(i > stepNumber) {
       ledR[i] = ledG[i] = ledB[i] = 0;
     } else if (i == stepNumber) {
@@ -3994,9 +3992,3 @@ void setBlinkMode(byte newMode) {
       }
   }
 }
-
-void configModeCallback (WiFiManager *myWiFiManager) {
-  debugMsg("*** Entered config mode");
-  setDiagnosticLED(DIAGS_WIFI,STATUS_BLUE);
-}
-

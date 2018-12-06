@@ -127,8 +127,10 @@
 #define TEMP_MODE_DATE                  0 // Display the date for 5 S
 #define TEMP_MODE_LDR                   1 // Display the normalised LDR reading for 5S, returns a value from 100 (dark) to 999 (bright)
 #define TEMP_MODE_VERSION               2 // Display the version for 5S
-#define TEMP_IP_ADDR12                  3 // IP xxx.yyy.zzz.aaa: xxx.yyy
-#define TEMP_IP_ADDR34                  4 // IP xxx.yyy.zzz.aaa: zzz.aaa
+#define TEMP_IP_ADDR1                   5 // IP xxx.yyy.zzz.aaa: xxx
+#define TEMP_IP_ADDR2                   6 // IP xxx.yyy.zzz.aaa: yyy
+#define TEMP_IP_ADDR3                   7 // IP xxx.yyy.zzz.aaa: zzz
+#define TEMP_IP_ADDR4                   8 // IP xxx.yyy.zzz.aaa: aaa
 #define TEMP_IMPR                       5 // number of impressions per second
 #define TEMP_MODE_MAX                   5
 
@@ -214,7 +216,7 @@
 #define APPLY_LEAD_0_BLANK              true
 
 // -------------------------------------------------------------------------------
-#define PixelCount                      4
+#define DIGIT_COUNT                     4
 
 // -------------------------------------------------------------------------------
 #define BUILTIN_LED_PIN                 1
