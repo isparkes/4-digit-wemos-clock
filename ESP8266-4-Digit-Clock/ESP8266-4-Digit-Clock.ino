@@ -1,7 +1,7 @@
 //**********************************************************************************
 //* Main code for an ESP8266 based Nixie/VFD clock. Features:                      *
 //*  - WiFi Clock interface for the WiFiModule  OR                                 *
-//*  - Real Time Clock interface for DS3231                                        *
+//*  - Real Time Clock interface for DS1307+                                       *
 //*  - Digit fading with configurable fade length                                  *
 //*  - Digit scrollback with configurable scroll speed                             *
 //*  - Configuration stored in Flash (JSON)                                        *
@@ -99,14 +99,15 @@ ESP8266WebServer server(80);
 
 //**********************************************************************************
 Transition transition(500, 1000, 3000);
+//**********************************************************************************
 
-byte NumberArray[4]    = {0, 0, 0, 0};
-byte currNumberArray[4] = {0, 0, 0, 0};
-byte displayType[4]    = {FADE, FADE, FADE, FADE};
-byte fadeState[4]      = {0, 0, 0, 0};
+byte NumberArray[DIGIT_COUNT]    = {0, 0, 0, 0};
+byte currNumberArray[DIGIT_COUNT] = {0, 0, 0, 0};
+byte displayType[DIGIT_COUNT]    = {FADE, FADE, FADE, FADE};
+byte fadeState[DIGIT_COUNT]      = {0, 0, 0, 0};
 byte valueDisplayTime  = 0;
-byte valueToShow[2]    = {0, 0};
-byte valueDisplayType[2] = {0x33, 0x33}; // All normal by default
+byte valueToShow[DIGIT_COUNT/2]    = {0, 0};
+byte valueDisplayType[DIGIT_COUNT/2] = {0x33, 0x33}; // All normal by default
 
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
 // 100 is about 1 second
@@ -186,7 +187,10 @@ boolean onceHadAnRTC = false;
 // **************************** LED management ***************************
 boolean upOrDown;
 
-int tlPWM = 0;
+// Used to control the separator LEDs
+boolean led1State;
+boolean led2State;
+
 byte ledMode = 0;       // Separator LED mode
 
 // Blinking colons led in settings modes
@@ -685,59 +689,58 @@ void setLeds()
     secsDelta = 1000 - (nowMillis - lastCheckMillis);
   }
 
+  // calculate the PWM factor, goes between minDim% and 100%
+  float dimFactor = (float) digitOffCount / (float) DIGIT_DISPLAY_OFF;
+
+  // Calculate the brightness factor based on the "pulse"
+  float pwmFactor = (float) secsDelta / (float) 1000.0;
+
   switch (ledMode) {
     case LED_RAILROAD:
     {
       if (upOrDown) {
-        digitalWrite(LEDPin1, HIGH);
-        digitalWrite(LEDPin2, LOW);
+        led1State = true;
+        led2State = false;
       } else {
-        digitalWrite(LEDPin1, LOW);
-        digitalWrite(LEDPin2, HIGH);
+        led1State = false;
+        led2State = true;
       }
       break;
     }
     case LED_BLINK_SLOW:
     {
       if (upOrDown) {
-        digitalWrite(LEDPin1, HIGH);
-        digitalWrite(LEDPin2, HIGH);
+        led1State = true;
+        led2State = true;
       } else {
-        digitalWrite(LEDPin1, LOW);
-        digitalWrite(LEDPin2, LOW);
+        led1State = false;
+        led2State = false;
       }
       break;
     }
     case LED_BLINK_FAST:
     {
       if (secsDeltaAbs < 500) {
-        digitalWrite(LEDPin1, HIGH);
-        digitalWrite(LEDPin2, HIGH);
+        led1State = true;
+        led2State = true;
       } else {
-        digitalWrite(LEDPin1, LOW);
-        digitalWrite(LEDPin2, LOW);
+        led1State = false;
+        led2State = false;
       }
       break;
     }
     case LED_BLINK_DBL:
     {
       if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
-        digitalWrite(LEDPin1, HIGH);
-        digitalWrite(LEDPin2, HIGH);
+        led1State = true;
+        led2State = true;
       } else {
-        digitalWrite(LEDPin1, LOW);
-        digitalWrite(LEDPin2, LOW);
+        led1State = false;
+        led2State = false;
       }
       break;
     }
   }
-
-  // calculate the PWM factor, goes between minDim% and 100%
-  float dimFactor = (float) digitOffCount / (float) DIGIT_DISPLAY_OFF;
-  float pwmFactor = (float) secsDelta / (float) 1000.0;
-
-  // Tick led output PWM factor
-  tlPWM = getLEDAdjusted(255, pwmFactor, dimFactor);
 
   if (blankLEDs) {
           setAllLEDs( getLEDAdjusted(0, 1, 1), 
@@ -780,17 +783,17 @@ void setLeds()
         break;
       case BACKLIGHT_COLOUR_TIME:
           for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-            ledR[5-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,1);
-            ledG[5-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,1);
-            ledB[5-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,1);
+            ledR[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,1);
+            ledG[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,1);
+            ledB[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,1);
           }
           outputLEDBuffer();
         break;
       case BACKLIGHT_COLOUR_TIME_DIM:
           for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-            ledR[5-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,dimFactor);
-            ledG[5-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,dimFactor);
-            ledB[5-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,dimFactor);
+            ledR[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,dimFactor);
+            ledG[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,dimFactor);
+            ledB[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,dimFactor);
           }
           outputLEDBuffer();
         break;
@@ -1026,12 +1029,6 @@ void setNextMode(int displayMode) {
         displayConfig();
         break;
       }
-    case MODE_ANTI_GHOST_UP:
-    case MODE_ANTI_GHOST_DOWN: {
-        loadNumberArrayConfMode(displayMode);
-        displayConfig();
-        break;
-      }
     case MODE_USE_PIR_PULLUP: {
         loadNumberArrayConfBool(usePIRPullup, displayMode);
         displayConfig();
@@ -1103,6 +1100,11 @@ void processCurrentMode(int displayMode) {
         if (tempDisplayModeDuration > 0) {
           blanked = false;
           setTubesAndLEDSBlankMode();
+          
+          if (tempDisplayMode == TEMP_MODE_SECS) {
+            loadNumberArrayMinsSecs();
+          }
+
           if (tempDisplayMode == TEMP_MODE_DATE) {
             loadNumberArrayDayMonth();
           }
@@ -1159,8 +1161,8 @@ void processCurrentMode(int displayMode) {
             }
           }
 
-          if (tempDisplayMode == TEMP_IMPR) {
-            loadNumberArrayConfInt(lastImpressionsPerSec, 0);
+          if (tempDisplayMode == TEMP_MODE_IMPR) {
+            loadNumberArrayConfIntWide(lastImpressionsPerSec);
           }
 
           allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
@@ -1190,9 +1192,7 @@ void processCurrentMode(int displayMode) {
             }
 
             // Continue slots
-            if (msgDisplaying) {
-              transition.updateRegularDisplaySeconds(second());
-            } else {
+            if (!msgDisplaying) {
               // no slots mode, check if we are in valueDisplayMode
               if (valueDisplayTime > 0) {
                 loadNumberArrayValue();
@@ -1542,30 +1542,6 @@ void processCurrentMode(int displayMode) {
           }
         }
         loadNumberArrayConfIntWide(minDim);
-        displayConfig();
-        break;
-      }
-    case MODE_ANTI_GHOST_UP: {
-        if (button1.isButtonPressedAndReleased()) {
-          antiGhost += 1;
-          if (antiGhost > ANTI_GHOST_MAX) {
-            antiGhost = ANTI_GHOST_MAX;
-          }
-          dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
-        }
-        loadNumberArrayConfIntWide(antiGhost);
-        displayConfig();
-        break;
-      }
-    case MODE_ANTI_GHOST_DOWN: {
-        if (button1.isButtonPressedAndReleased()) {
-          antiGhost -= 1;
-          if (antiGhost < ANTI_GHOST_MIN) {
-            antiGhost = ANTI_GHOST_MIN;
-          }
-          dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
-        }
-        loadNumberArrayConfIntWide(antiGhost);
         displayConfig();
         break;
       }
@@ -1976,8 +1952,10 @@ void outputDisplay()
         yield();
       } else if (timer == digitOffTime) {
         digitOff(i, NumberArray[i]);
+        ledsOff();
       } else if (timer == digitOnTime) {
         digitOn(i, currNumberArray[i]);
+        ledsOn();
       } else if (timer == digitSwitchTime) {
         digitOn(i, NumberArray[i]);
       }
@@ -2010,6 +1988,16 @@ void digitOn(byte digit, byte value) {
 void digitOff(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf);
   shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
+}
+
+void ledsOn() {
+  digitalWrite(LEDPin1, led1State);
+  digitalWrite(LEDPin2, led2State);
+}
+
+void ledsOff() {
+  digitalWrite(LEDPin1, LOW);
+  digitalWrite(LEDPin2, LOW);
 }
 
 // ************************************************************
@@ -2909,6 +2897,7 @@ void rootPageHandler() {
   // ESP8266 Info table
   double onTimeHrs = uptimeMins/60.0;
   double tubeOnTimeHrs = tubeOnTimeMins/60.0;
+  float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
   response_message += getTableHead2Col("ESP8266 information", "Name", "Value");
   response_message += getTableRow2Col("Sketch size", ESP.getSketchSize());
   response_message += getTableRow2Col("Free sketch size", ESP.getFreeSketchSpace());
@@ -2920,6 +2909,7 @@ void rootPageHandler() {
   response_message += getTableRow2Col("Flash Chip ID", ESP.getFlashChipId());
   response_message += getTableRow2Col("Flash size", ESP.getFlashChipRealSize());
   response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
+  response_message += getTableRow2Col("Digit brightness %", String(digitBrightness,2));
   response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
   response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs,2));
   response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs,2));

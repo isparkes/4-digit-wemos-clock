@@ -105,34 +105,33 @@
 #define MODE_MIN_DIM_UP                 30 // Mode "23"
 #define MODE_MIN_DIM_DOWN               31 // Mode "24"
 
-// Anti-ghosting for old tubes
-#define MODE_ANTI_GHOST_UP              32 // Mode "25"
-#define MODE_ANTI_GHOST_DOWN            33 // Mode "26"
-
 // Use the PIR pin pullup resistor
-#define MODE_USE_PIR_PULLUP             34 // Mode "27" 1 = use Pullup
+#define MODE_USE_PIR_PULLUP             32 // Mode "25" 1 = use Pullup
 #define USE_PIR_PULLUP_DEFAULT          true
 
 // Software Version
-#define MODE_VERSION                    35 // Mode "28"
+#define MODE_VERSION                    33 // Mode "25"
 
 // Tube test - all six digits, so no flashing mode indicator
-#define MODE_TUBE_TEST                  36
+#define MODE_TUBE_TEST                  34
 
-#define MODE_MAX                        36
+#define MODE_MAX                        34
 
 // -------------------------------------------------------------------------------
 // Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
+
+// Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
 #define TEMP_MODE_MIN                   0
-#define TEMP_MODE_DATE                  0 // Display the date for 5 S
-#define TEMP_MODE_LDR                   1 // Display the normalised LDR reading for 5S, returns a value from 100 (dark) to 999 (bright)
-#define TEMP_MODE_VERSION               2 // Display the version for 5S
-#define TEMP_IP_ADDR1                   5 // IP xxx.yyy.zzz.aaa: xxx
-#define TEMP_IP_ADDR2                   6 // IP xxx.yyy.zzz.aaa: yyy
-#define TEMP_IP_ADDR3                   7 // IP xxx.yyy.zzz.aaa: zzz
-#define TEMP_IP_ADDR4                   8 // IP xxx.yyy.zzz.aaa: aaa
-#define TEMP_IMPR                       5 // number of impressions per second
-#define TEMP_MODE_MAX                   5
+#define TEMP_MODE_SECS                  0 // Display mins and secs
+#define TEMP_MODE_DATE                  1 // Display the date
+#define TEMP_MODE_LDR                   2 // Display the normalised LDR reading for 5S, returns a value from 100 (dark) to 999 (bright)
+#define TEMP_MODE_VERSION               3 // Display the version
+#define TEMP_IP_ADDR1                   4 // IP xxx.yyy.zzz.aaa: xxx
+#define TEMP_IP_ADDR2                   5 // IP xxx.yyy.zzz.aaa: yyy
+#define TEMP_IP_ADDR3                   6 // IP xxx.yyy.zzz.aaa: zzz
+#define TEMP_IP_ADDR4                   7 // IP xxx.yyy.zzz.aaa: aaa
+#define TEMP_MODE_IMPR                  8 // number of impressions per second
+#define TEMP_MODE_MAX                   8
 
 #define TEMP_DISPLAY_MODE_DUR_MS        5000
 
