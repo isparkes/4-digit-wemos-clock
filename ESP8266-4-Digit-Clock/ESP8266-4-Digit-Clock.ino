@@ -2892,8 +2892,8 @@ void rootPageHandler() {
 
   response_message += getTableRow2Col("Uptime", uptimeString);
 
-  String lastUpdateString = ""; lastUpdateString += (nowMillis - lastUpdateFromServer);
-  response_message += getTableRow2Col("Time since last update", lastUpdateString);
+  float lastUpdateTimeSecs = (nowMillis - lastUpdateFromServer) / 1000.0;
+  response_message += getTableRow2Col("Last time update", String(lastUpdateTimeSecs, 3) + " S ago");
 
   response_message += getTableRow2Col("Version", SOFTWARE_VERSION);
 
@@ -2951,7 +2951,7 @@ void rootPageHandler() {
 
 String getPIRStateDisplay() {
   float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0; 
-  return "Motion detected " + String(lastMotionDetection, 2) + "S ago";   
+  return "Motion detected " + String(lastMotionDetection, 2) + " S ago";
 }
 
 // ===================================================================================================================
