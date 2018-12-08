@@ -1,6 +1,6 @@
 //**********************************************************************************
 //* Main code for an ESP8266 based Nixie/VFD clock. Features:                      *
-//*  - WiFi Clock interface for the WiFiModule  OR                                 *
+//*  - WiFi Clock interface for the WiFiModule                                     *
 //*  - Real Time Clock interface for DS1307+                                       *
 //*  - Digit fading with configurable fade length                                  *
 //*  - Digit scrollback with configurable scroll speed                             *
@@ -152,7 +152,6 @@ int dimBright = SENSOR_HIGH_DEFAULT;
 double sensorLDRSmoothed = 0;
 double sensorFactor = (double)(DIGIT_DISPLAY_OFF) / (double)(dimBright - dimDark);
 int sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
-int sensorSmoothCountHV = SENSOR_SMOOTH_READINGS_DEFAULT / 8;
 boolean useLDR = true;
 
 // ************************ Clock variables ************************
@@ -176,6 +175,7 @@ boolean hourMode = false; // 24H
 // PIR
 unsigned long pirTimeout = PIR_TIMEOUT_DEFAULT;
 unsigned long pirLastSeen = 0;
+boolean pirInstalled = false;
 boolean usePIRPullup = true;
 
 boolean triggeredThisSec = false;
@@ -816,12 +816,20 @@ boolean checkPIR(unsigned long nowMillis) {
     pirLastSeen = nowMillis;
     return false;
   } else {
+    pirInstalled = true;
     if (nowMillis > (pirLastSeen + (pirTimeout * 1000))) {
       return true;
     } else {
       return false;
     }
   }
+}
+
+// ************************************************************
+// Check if the PIR sensor is installed
+// ************************************************************
+boolean checkPIRInstalled() {
+  return pirInstalled;
 }
 
 // ************************************************************
@@ -1971,9 +1979,7 @@ void outputDisplay()
 }
 
 // ************************************************************
-// Set a digit with the given value and turn the HVGen on
-// Assumes that all digits have previously been turned off
-// by a call to "digitOff"
+// Set a digit with the given value, for a given digit
 // ************************************************************
 void digitOn(byte digit, byte value) {
   byte dispValue = (anodes[digit] & 0xf0);
@@ -1983,25 +1989,31 @@ void digitOn(byte digit, byte value) {
 }
 
 // ************************************************************
-// Finish displaying a digit and turn the HVGen off
+// Turn the anodes off
 // ************************************************************
 void digitOff(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf);
   shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
 }
 
+// ************************************************************
+// Turn the separator LEDs on
+// ************************************************************
 void ledsOn() {
   digitalWrite(LEDPin1, led1State);
   digitalWrite(LEDPin2, led2State);
 }
 
+// ************************************************************
+// Turn the separator LEDs off
+// ************************************************************
 void ledsOff() {
   digitalWrite(LEDPin1, LOW);
   digitalWrite(LEDPin2, LOW);
 }
 
 // ************************************************************
-// Perform the parallel shift out to the registers
+// Perform the shift out to the shift register
 // ************************************************************
 void shiftOut(uint8_t _loadPin,
                   uint8_t _dataPin1,
@@ -2329,9 +2341,13 @@ void setTimeFromServer(String timeString) {
 
 
 // ************************************************************
-// Check the blanking
+// Check the blanking, overrideen if we have a PIR installed
 // ************************************************************
 boolean checkBlanking() {
+  // If we are running on PIR, never use native blanking
+  if (checkPIRInstalled())
+    return false;
+
   // Check day blanking, but only when we are in
   // normal time mode
   if (currentMode == MODE_TIME) {
@@ -2894,10 +2910,23 @@ void rootPageHandler() {
 
   response_message += getTableFoot();
 
-  // ESP8266 Info table
+  // ******************** Clock Info table ***************************
   double onTimeHrs = uptimeMins/60.0;
   double tubeOnTimeHrs = tubeOnTimeMins/60.0;
   float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
+  String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
+  String rtcState = useRTC ? "Installed" : "Not installed";
+  response_message += getTableHead2Col("Clock information", "Name", "Value");
+  response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
+  response_message += getTableRow2Col("Digit brightness %", String(digitBrightness,2));
+  response_message += getTableRow2Col("Motion Sensor", motionSensorState);
+  response_message += getTableRow2Col("Real Time Clock", rtcState);
+  response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
+  response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs,2));
+  response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs,2));
+  response_message += getTableFoot();
+
+  // ******************** ESP8266 Info table ***************************
   response_message += getTableHead2Col("ESP8266 information", "Name", "Value");
   response_message += getTableRow2Col("Sketch size", ESP.getSketchSize());
   response_message += getTableRow2Col("Free sketch size", ESP.getFreeSketchSpace());
@@ -2908,19 +2937,18 @@ void rootPageHandler() {
   response_message += getTableRow2Col("Chip ID", ESP.getChipId());
   response_message += getTableRow2Col("Flash Chip ID", ESP.getFlashChipId());
   response_message += getTableRow2Col("Flash size", ESP.getFlashChipRealSize());
-  response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
-  response_message += getTableRow2Col("Digit brightness %", String(digitBrightness,2));
-  response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
-  response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs,2));
-  response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs,2));
   response_message += getTableFoot();
-
+  
   response_message += getHTMLFoot();
 
   server.send(200, "text/html", response_message);
   
   digitalWrite(BUILTIN_LED_PIN, false);
   debugMsg("Root page out");
+}
+
+String getPIRStateDisplay() {
+  return checkPIR(nowMillis) ? "Motion detected" : "Motion not detected";   
 }
 
 // ===================================================================================================================
@@ -3318,6 +3346,9 @@ void clockConfigPageHandler() {
   if (changed) {
     debugMsg("Config options changed, saving them");
     saveConfigToSpiffs();
+
+    // Save the stats while we are at it
+    saveStatsToSpiffs();
   }
 
   String response_message = getHTMLHead();
@@ -3695,9 +3726,9 @@ String getNavBar() {
 String getTableHead2Col(String tableHeader, String col1Header, String col2Header) {
   String tableHead = "<div class=\"container\" role=\"main\"><h3 class=\"sub-header\">";
   tableHead += tableHeader;
-  tableHead += "</h3><div class=\"table-responsive\"><table class=\"table table-striped\"><thead><tr><th>";
+  tableHead += "</h3><div class=\"table-responsive\"><table class=\"table table-striped\"><thead><tr><th class=\"col-xs-6\">";
   tableHead += col1Header;
-  tableHead += "</th><th>";
+  tableHead += "</th><th class=\"col-xs-6\">";
   tableHead += col2Header;
   tableHead += "</th></tr></thead><tbody>";
 
