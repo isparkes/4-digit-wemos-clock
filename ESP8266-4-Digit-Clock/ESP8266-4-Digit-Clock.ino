@@ -2930,9 +2930,11 @@ void rootPageHandler() {
   response_message += getTableHead2Col("ESP8266 information", "Name", "Value");
   response_message += getTableRow2Col("Sketch size", ESP.getSketchSize());
   response_message += getTableRow2Col("Free sketch size", ESP.getFreeSketchSpace());
+  response_message += getTableRow2Col("Sketch hash", ESP.getSketchMD5());
   response_message += getTableRow2Col("Free heap", ESP.getFreeHeap());
   response_message += getTableRow2Col("Boot version", ESP.getBootVersion());
   response_message += getTableRow2Col("CPU Freqency (MHz)", ESP.getCpuFreqMHz());
+  response_message += getTableRow2Col("Flash speed (Hz)", ESP.getFlashChipSpeed());
   response_message += getTableRow2Col("SDK version", ESP.getSdkVersion());
   response_message += getTableRow2Col("Chip ID", ESP.getChipId());
   response_message += getTableRow2Col("Flash Chip ID", ESP.getFlashChipId());
@@ -2948,7 +2950,8 @@ void rootPageHandler() {
 }
 
 String getPIRStateDisplay() {
-  return checkPIR(nowMillis) ? "Motion detected" : "Motion not detected";   
+  float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0; 
+  return "Motion detected " + String(lastMotionDetection, 2) + "S ago";   
 }
 
 // ===================================================================================================================
@@ -2960,7 +2963,7 @@ String getPIRStateDisplay() {
 void timeServerPageHandler() {
   debugMsg("Time page in");
   digitalWrite(BUILTIN_LED_PIN, true);
-  
+
   // Check if there are any GET parameters, if there are, we are configuring
   if (server.hasArg("timeserverurl"))
   {
