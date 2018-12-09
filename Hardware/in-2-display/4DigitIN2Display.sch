@@ -557,8 +557,6 @@ Wire Wire Line
 	9700 3200 9700 2900
 Wire Wire Line
 	9700 2500 9850 2500
-Wire Wire Line
-	9700 2400 9700 2500
 Text Label 9850 2500 0    60   ~ 0
 DLS_I
 $Comp
@@ -617,23 +615,6 @@ Text Label 9900 1900 0    60   ~ 0
 VCC_I
 Text Label 7550 1350 2    20   ~ 0
 SEP_VCC
-$Comp
-L 4DigitIN2Display-rescue:RCL_R-EU_0207_2V-4DigitIN12Display-rescue R14
-U 1 1 5BDF52A8
-P 9700 2200
-F 0 "R14" H 9550 2258 70  0000 L BNN
-F 1 "10k" H 9550 2070 70  0000 L BNN
-F 2 "NixieClockMaster:R-0207_2V" H 9690 1990 70  0001 L TNN
-F 3 "" H 9700 2200 60  0001 C CNN
-	1    9700 2200
-	0    -1   -1   0   
-$EndComp
-Connection ~ 9700 2500
-Wire Wire Line
-	9150 1900 9700 1900
-Wire Wire Line
-	9700 1900 9700 2000
-Connection ~ 9700 1900
 Text Notes 6750 850  0    70   ~ 0
 Separator neons/LEDs and LDR
 Text Notes 4000 4400 0    70   ~ 0
@@ -722,8 +703,6 @@ Wire Wire Line
 	8450 3200 9700 3200
 Wire Wire Line
 	9700 2500 9700 2600
-Wire Wire Line
-	9700 1900 9900 1900
 Wire Wire Line
 	1650 5800 3250 5800
 $Comp
@@ -858,4 +837,6 @@ Wire Wire Line
 	7050 5500 7050 6100
 Wire Wire Line
 	7150 5500 7150 6150
+Wire Wire Line
+	9150 1900 9900 1900
 $EndSCHEMATC
