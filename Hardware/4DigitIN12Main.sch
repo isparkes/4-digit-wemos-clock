@@ -126,17 +126,6 @@ F 4 "Value" H 2050 5200 60  0001 C CNN "Fieldname"
 	-1   0    0    1   
 $EndComp
 $Comp
-L 4DigitIN12Main-rescue:AP1117D50-4DigitIN12Main-rescue U3
-U 1 1 594AB3A7
-P 3400 5200
-F 0 "U3" H 3500 4950 50  0000 C CNN
-F 1 "AP1117D50" H 3400 5450 50  0000 C CNN
-F 2 "NixieClockMaster:SOT-223" H 3400 5200 50  0001 C CNN
-F 3 "" H 3400 5200 50  0000 C CNN
-	1    3400 5200
-	1    0    0    -1  
-$EndComp
-$Comp
 L 4DigitIN12Main-rescue:WS2812B-RESCUE-4DigitIN12Main-4DigitIN12Main-rescue LED4
 U 1 1 594ABAA1
 P 5750 1950
@@ -556,8 +545,6 @@ Wire Wire Line
 	13900 8000 14300 8000
 Text Label 14300 8100 2    60   ~ 0
 VCC
-Text Notes 7100 9700 0    70   ~ 0
-I2C Interface
 $Comp
 L 4DigitIN12Main-rescue:FRAMES_FRAME_A_L-4DigitIN12Main-rescue #FRAME2
 U 1 1 5BDEB8FE
@@ -591,29 +578,10 @@ F 3 "" H 4450 10300 60  0001 C CNN
 	1    4450 10300
 	-1   0    0    1   
 $EndComp
-$Comp
-L 4DigitIN12Main-rescue:ARDUNIX6_MA04-1-4DigitIN12Main-rescue SV2
-U 1 1 5BDEB910
-P 7650 10350
-F 0 "SV2" H 7600 10580 70  0000 L BNN
-F 1 "CONN_I2C" H 7601 9950 70  0000 L BNN
-F 2 "NixieClockMaster:Header_MA04-1" H 7640 10140 70  0001 L TNN
-F 3 "" H 7650 10350 60  0001 C CNN
-	1    7650 10350
-	-1   0    0    1   
-$EndComp
 Text Label 4850 10300 0    65   ~ 0
 BTN1
 Text Label 4850 10400 0    65   ~ 0
 GND
-Text Label 7150 10450 2    65   ~ 0
-GND
-Text Label 7150 10150 2    65   ~ 0
-SCL
-Text Label 7150 10250 2    65   ~ 0
-SDA
-Text Label 7150 10350 2    65   ~ 0
-VCC
 Text Label 4850 10100 0    65   ~ 0
 VCC
 $Comp
@@ -631,14 +599,6 @@ Wire Wire Line
 	4650 10300 4850 10300
 Wire Wire Line
 	2000 10300 2100 10300
-Wire Wire Line
-	7350 10450 7150 10450
-Wire Wire Line
-	7350 10150 7150 10150
-Wire Wire Line
-	7350 10250 7150 10250
-Wire Wire Line
-	7350 10350 7150 10350
 Wire Wire Line
 	4650 10200 4850 10200
 Wire Wire Line
@@ -804,7 +764,6 @@ F 3 "" H 12500 5250 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 NoConn ~ 64050 34300
-NoConn ~ 4800 7750
 NoConn ~ 4800 8450
 Wire Wire Line
 	3450 8350 3800 8350
@@ -1191,29 +1150,29 @@ VCC
 Wire Wire Line
 	12800 4850 12500 4850
 Wire Wire Line
-	9800 10200 10200 10200
+	6400 10150 6800 10150
 Wire Wire Line
-	9800 10300 10200 10300
-Text Label 10200 10200 2    60   ~ 0
+	6400 10250 6800 10250
+Text Label 6800 10150 2    60   ~ 0
 VCC
-Text Label 10200 10300 2    60   ~ 0
+Text Label 6800 10250 2    60   ~ 0
 GND
-Text Label 10200 10400 2    60   ~ 0
+Text Label 6800 10350 2    60   ~ 0
 LED_DATA
 $Comp
 L 4DigitIN12Main-rescue:Conn_01x03-4DigitIN12Main-rescue J4
 U 1 1 5BDEB977
-P 9600 10300
-F 0 "J4" H 9600 10500 50  0000 C CNN
-F 1 "Conn_01x03" H 9600 10100 50  0000 C CNN
-F 2 "NixieClockMaster:Header_MA03-1_Small" H 9600 10300 50  0001 C CNN
-F 3 "" H 9600 10300 50  0001 C CNN
-	1    9600 10300
+P 6200 10250
+F 0 "J4" H 6200 10450 50  0000 C CNN
+F 1 "Conn_01x03" H 6200 10050 50  0000 C CNN
+F 2 "NixieClockMaster:Header_MA03-1_Small" H 6200 10250 50  0001 C CNN
+F 3 "" H 6200 10250 50  0001 C CNN
+	1    6200 10250
 	-1   0    0    1   
 $EndComp
 Wire Wire Line
-	9800 10400 10200 10400
-Text Notes 9500 9750 0    70   ~ 0
+	6400 10350 6800 10350
+Text Notes 6100 9700 0    70   ~ 0
 WS2812 test points
 Text Label 5150 7850 2    60   ~ 0
 T_LED1
@@ -1450,4 +1409,16 @@ Wire Wire Line
 	5050 5700 4200 5700
 Connection ~ 5050 5700
 Connection ~ 4200 5700
+$Comp
+L Regulator_Linear:L7805 U3
+U 1 1 5C0E3703
+P 3400 5200
+F 0 "U3" H 3400 5442 50  0000 C CNN
+F 1 "L7805" H 3400 5351 50  0000 C CNN
+F 2 "NixieClockMaster:TO-220-3_H" H 3425 5050 50  0001 L CIN
+F 3 "http://www.st.com/content/ccc/resource/technical/document/datasheet/41/4f/b3/b0/12/d4/47/88/CD00000444.pdf/files/CD00000444.pdf/jcr:content/translations/en.CD00000444.pdf" H 3400 5150 50  0001 C CNN
+	1    3400 5200
+	1    0    0    -1  
+$EndComp
+NoConn ~ 4800 7750
 $EndSCHEMATC
