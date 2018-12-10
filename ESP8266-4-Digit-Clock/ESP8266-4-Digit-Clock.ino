@@ -638,7 +638,6 @@ void performOncePerMinuteProcessing() {
       // We recently got an update, send to the RTC (if installed)
       setRTCTime();
       debugMsg("-> Set RTC time to Net time");
-      getRTCTime();
     } else {
       debugMsg("Net time is not right up to date: " + String(MAX_WIFI_TIME - useWiFi));
     }
