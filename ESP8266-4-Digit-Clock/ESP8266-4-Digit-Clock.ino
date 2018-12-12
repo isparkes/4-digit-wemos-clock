@@ -1,6 +1,6 @@
 //**********************************************************************************
 //* Main code for an ESP8266 based Nixie/VFD clock. Features:                      *
-//*  - WiFi Clock interface for the WiFiModule                                     *
+//*  - WiFi Clock configuration interface                                          *
 //*  - Real Time Clock interface for DS1307+                                       *
 //*  - Digit fading with configurable fade length                                  *
 //*  - Digit scrollback with configurable scroll speed                             *
@@ -9,7 +9,7 @@
 //*  - Single button operation with software debounce                              *
 //*  - Automatic dimming, using a Light Dependent Resistor                         *
 //*  - RGB back light management using individually addressable WS2812B            *
-//*  - PIR sensor to turn off display when no one is around                        *
+//*  - PIR/motion sensor to turn off display when no one is around                 *
 //*                                                                                *
 //*   Program with following settings (status line / IDE):                         *
 //*                                                                                *
@@ -19,7 +19,6 @@
 //*    Upload speed: 921600,                                                       *
 //*    Flash size: 4M (1M SPIFFS),                                                 *
 //*    Erase Flash: Only sketch       ,                                            *
-//*    Builtin LED: 1                                                              *
 //*                                                                                *
 //*  nixie@protonmail.ch                                                           *
 //*                                                                                *
@@ -99,16 +98,16 @@ ESP8266WebServer server(80);
 Transition transition(500, 1000, 3000);
 //**********************************************************************************
 
-byte NumberArray[DIGIT_COUNT]    = {0, 0, 0, 0};
+byte NumberArray[DIGIT_COUNT]     = {0, 0, 0, 0};
 byte currNumberArray[DIGIT_COUNT] = {0, 0, 0, 0};
-byte displayType[DIGIT_COUNT]    = {FADE, FADE, FADE, FADE};
-byte fadeState[DIGIT_COUNT]      = {0, 0, 0, 0};
-byte valueDisplayTime  = 0;
-byte valueToShow[DIGIT_COUNT/2]    = {0, 0};
-byte valueDisplayType[DIGIT_COUNT/2] = {0x33, 0x33}; // All normal by default
+byte displayType[DIGIT_COUNT]     = {FADE, FADE, FADE, FADE};
+byte fadeState[DIGIT_COUNT]       = {0, 0, 0, 0};
+byte valueDisplayTime             = 0;
+byte valueToShow[DIGIT_COUNT/2]   = {0, 0};
+byte valueDisplayType[DIGIT_COUNT/2] = {NORMAL| NORMAL >> 4, NORMAL| NORMAL >> 4}; // All normal by default
 
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
-// 100 is about 1 second
+// 300 is about 1 second
 int fadeSteps = FADE_STEPS_DEFAULT;
 int digitOffCount = DIGIT_DISPLAY_OFF;
 int scrollSteps = SCROLL_STEPS_DEFAULT;
@@ -278,7 +277,7 @@ void setup()
   setDiagnosticLED(DIAGS_WIFI,STATUS_YELLOW);
 
   boolean connected = false;
-  connected = wifiManager.autoConnect("VFDClock","SetMeUp!");
+  connected = wifiManager.autoConnect("ESPClock","SetMeUp!");
 
   if (connected) {
     debugMsg("Connected!");
@@ -606,16 +605,6 @@ void performOncePerSecondProcessing() {
 // Called once per minute
 // ************************************************************
 void performOncePerMinuteProcessing() {
-  // Try to reconnect if we are  not connected
-   if (WiFi.status() != WL_CONNECTED) {
-      debugMsg("Attepting to reconnect dropped connection WiFi connection to " + WiFi.SSID());
-      ETS_UART_INTR_DISABLE();
-      wifi_station_disconnect();
-      ETS_UART_INTR_ENABLE();
-
-      WiFi.begin();
-   }
-
   // Try to recover the current time
   lastTimeFromServer = getTimeFromTimeZoneServer();
 
@@ -664,6 +653,7 @@ void performOncePerMinuteProcessing() {
 // Called once per hour
 // ************************************************************
 void performOncePerHourProcessing() {
+  reconnectDroppedConnection();
 }
 
 // ************************************************************
@@ -803,7 +793,7 @@ void setLeds()
 // don't want to respect the pin value, because it would defeat
 // normal day blanking. The first time the PIR takes the pin low
 // we mark that we have a PIR and we should start to respect
-// the sensor.
+// the sensor over configured blanking.
 // Returns true if PIR sensor is installed and we are blanked
 // ************************************************************
 boolean checkPIR(unsigned long nowMillis) {
@@ -2372,6 +2362,14 @@ boolean checkBlanking() {
 }
 
 // ************************************************************
+// Get the readable version of the PIR state
+// ************************************************************
+String getPIRStateDisplay() {
+  float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0; 
+  return "Motion detected " + String(lastMotionDetection, 2) + " S ago";
+}
+
+// ************************************************************
 // If we are currently blanked based on hours
 // ************************************************************
 boolean getHoursBlanked() {
@@ -2441,12 +2439,69 @@ void randomRGBFlash(int delayVal) {
   delay(delayVal);
 }
 
-// ************************************************************
-// Tell the Diag LED that we have connected
-// ************************************************************
-void configModeCallback (WiFiManager *myWiFiManager) {
-  debugMsg("*** Entered config mode");
-  setDiagnosticLED(DIAGS_WIFI,STATUS_BLUE);
+/**
+ * Set the diagnostic LED colour:
+ * stepNumber 0..5
+ * state: 0 = red, 1 = orange, 2 = green, 3 = blue
+ */
+void setDiagnosticLED(byte stepNumber, byte state) {
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
+    if(i > stepNumber) {
+      ledR[i] = ledG[i] = ledB[i] = 0;
+    } else if (i == stepNumber) {
+      if (state == STATUS_RED) {
+        ledR[i] = 0xff;
+        ledG[i] = 0;
+        ledB[i] = 0;
+      } else if (state == STATUS_YELLOW) {
+        ledR[i] = 0xff;
+        ledG[i] = 0x7f;
+        ledB[i] = 0x0f;
+      } else if (state == STATUS_GREEN) {
+        ledR[i] = 0;
+        ledG[i] = 0xff;
+        ledB[i] = 0;
+      } else if (state == STATUS_BLUE) {
+        ledR[i] = 0;
+        ledG[i] = 0;
+        ledB[i] = 0xff;
+      }
+    }
+  }
+  outputLEDBuffer();
+
+  // A little pause for effect
+  delay(500);
+}
+
+// 0 = Connected, short flash, 1 = connected, update blink, 2 = connected, no time server
+void setBlinkMode(byte newMode) {
+  switch (newMode) {
+    case 0:
+      {
+        blinkOnTime = 5;
+        blinkTopTime = 1000;
+        break;
+      }
+    case 1:
+      {
+        blinkOnTime = 250;
+        blinkTopTime = 1000;
+        break;
+      }
+    case 2:
+      {
+        blinkOnTime = 250;
+        blinkTopTime = 500;
+        break;
+      }
+    case 3:
+      {
+        blinkOnTime = 100;
+        blinkTopTime = 200;
+        break;
+      }
+  }
 }
 
 //**********************************************************************************
@@ -2548,7 +2603,7 @@ int getDimmingFromLDR() {
 
 //**********************************************************************************
 //**********************************************************************************
-//*                               JSON functions                                   *
+//*                               SPIFFS functions                                 *
 //**********************************************************************************
 //**********************************************************************************
 
@@ -2848,9 +2903,9 @@ void factoryReset() {
 //**********************************************************************************
 //**********************************************************************************
 
-/**
-   Root page for the webserver
-*/
+// ************************************************************
+// Summary page
+// ************************************************************
 void rootPageHandler() {
   debugMsg("Root page in");
 
@@ -2944,17 +2999,9 @@ void rootPageHandler() {
   debugMsg("Root page out");
 }
 
-String getPIRStateDisplay() {
-  float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0; 
-  return "Motion detected " + String(lastMotionDetection, 2) + " S ago";
-}
-
-// ===================================================================================================================
-// ===================================================================================================================
-
-/**
-   Get the local time from the time server, and modify the time server URL if needed
-*/
+// ************************************************************
+// Get the local time from the time server, and modify the time server URL if needed
+// ************************************************************
 void timeServerPageHandler() {
   debugMsg("Time page in");
 
@@ -2992,15 +3039,9 @@ void timeServerPageHandler() {
   debugMsg("Time page out");
 }
 
-// ===================================================================================================================
-// ===================================================================================================================
-
-// ===================================================================================================================
-// ===================================================================================================================
-
-/**
-   Reset the EEPROM and stored values
-*/
+// ************************************************************
+// Reset the EEPROM and WiFi values, restart
+// ************************************************************
 void resetPageHandler() {
   debugMsg("Reset page in");
 
@@ -3021,16 +3062,12 @@ void resetPageHandler() {
   debugMsg("Reset page out");
 
   // do the restart
-  ESP.restart();
-  
+  ESP.restart();  
 }
 
-// ===================================================================================================================
-// ===================================================================================================================
-
-/**
-   Page for the clock configuration.
-*/
+// ************************************************************
+// Page for the clock configuration
+// ************************************************************
 void clockConfigPageHandler() {
   debugMsg("Config page in");
 
@@ -3511,12 +3548,9 @@ void clockConfigPageHandler() {
   debugMsg("Config page out");
 }
 
-// ===================================================================================================================
-// ===================================================================================================================
-
-/**
-   Send a value to the clock for display
-*/
+// ************************************************************
+// Send a value to the clock for display
+// ************************************************************
 void setDisplayValuePageHandler() {
   String resultMessage;
   byte timeValue = 0xff;
@@ -3597,10 +3631,9 @@ unsigned char hex2bcd (unsigned char x)
     return (y);
 }
 
-// ===================================================================================================================
-// ===================================================================================================================
-
-/* Called if requested page is not found */
+// ************************************************************
+// Called if requested page is not found
+// ************************************************************
 void handleNotFound() {
   debugMsg("404 page in");
 
@@ -3623,10 +3656,9 @@ void handleNotFound() {
   debugMsg("404 page out");
 }
 
-// ===================================================================================================================
-// ===================================================================================================================
-
-/* Called if we need to have a local CSS */
+// ************************************************************
+// Called if we need to have a local CSS
+// ************************************************************
 void localCSSHandler()
 {
   PGM_P cssStr = PSTR(".navbar,.table{margin-bottom:20px}.nav>li,.nav>li>a,article,aside,details,figcaption,figure,footer,header,hgroup,main,menu,nav,section,summary{display:block}.btn,.form-control,.navbar-toggle{background-image:none}.table,label{max-width:100%}.sub-header{padding-bottom:10px;border-bottom:1px solid #eee}.h3,h3{font-size:24px}.table{width:100%}table{background-color:transparent;border-spacing:0;border-collapse:collapse}.table-striped>tbody>tr:nth-of-type(2n+1){background-color:#f9f9f9}.table>caption+thead>tr:first-child>td,.table>caption+thead>tr:first-child>th,.table>colgroup+thead>tr:first-child>td,.table>colgroup+thead>tr:first-child>th,.table>thead:first-child>tr:first-child>td,.table>thead:first-child>tr:first-child>th{border-top:0}.table>thead>tr>th{border-bottom:2px solid #ddd}.table>tbody>tr>td,.table>tbody>tr>th,.table>tfoot>tr>td,.table>tfoot>tr>th,.table>thead>tr>td,.table>thead>tr>th{padding:8px;line-height:1.42857143;vertical-align:top;border-top:1px solid #ddd}th{text-align:left}td,th{padding:0}.navbar>.container .navbar-brand,.navbar>.container-fluid .navbar-brand{margin-left:-15px}.container,.container-fluid{padding-right:15px;padding-left:15px;margin-right:auto;margin-left:auto}.navbar-inverse .navbar-brand{color:#9d9d9d}.navbar-brand{float:left;height:50px;padding:15px;font-size:18px;line-height:20px}a{color:#337ab7;text-decoration:none;background-color:transparent}.navbar-fixed-top{border:0;top:0;border-width:0 0 1px}.navbar-inverse{background-color:#222;border-color:#080808}.navbar-fixed-bottom,.navbar-fixed-top{border-radius:0;position:fixed;right:0;left:0;z-index:1030}.nav>li,.nav>li>a,.navbar,.navbar-toggle{position:relative}.navbar{border-radius:4px;min-height:50px;border:1px solid transparent}.container{width:750px}.navbar-right{float:right!important;margin-right:-15px}.navbar-nav{float:left;margin:7.5px -15px}.nav{padding-left:0;margin-bottom:0;list-style:none}.navbar-nav>li{float:left}.navbar-inverse .navbar-nav>li>a{color:#9d9d9d}.navbar-nav>li>a{padding-top:10px;padding-bottom:10px;line-height:20px}.nav>li>a{padding:10px 15px}.navbar-inverse .navbar-toggle{border-color:#333}.navbar-toggle{display:none;float:right;padding:9px 10px;margin-top:8px;margin-right:15px;margin-bottom:8px;background-color:transparent;border:1px solid transparent;border-radius:4px}button,select{text-transform:none}button{overflow:visible}button,html input[type=button],input[type=reset],input[type=submit]{-webkit-appearance:button;cursor:pointer}.btn-primary{color:#fff;background-color:#337ab7;border-color:#2e6da4}.btn{display:inline-block;padding:6px 12px;margin-bottom:0;font-size:14px;font-weight:400;line-height:1.42857143;text-align:center;white-space:nowrap;vertical-align:middle;-ms-touch-action:manipulation;touch-action:manipulation;cursor:pointer;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;border:1px solid transparent;border-radius:4px}button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit}input{line-height:normal}button,input,optgroup,select,textarea{margin:0;font:inherit;color:inherit}.form-control,body{font-size:14px;line-height:1.42857143}.form-horizontal .form-group{margin-right:-15px;margin-left:-15px}.form-group{margin-bottom:15px}.form-horizontal .control-label{padding-top:7px;margin-bottom:0;text-align:right}.form-control{display:block;width:100%;height:34px;padding:6px 12px;color:#555;background-color:#fff;border:1px solid #ccc;border-radius:4px;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075);box-shadow:inset 0 1px 1px rgba(0,0,0,.075);-webkit-transition:border-color ease-in-out .15s,-webkit-box-shadow ease-in-out .15s;-o-transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s;transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s}.col-xs-8{width:66.66666667%}.col-xs-3{width:25%}.col-xs-1,.col-xs-10,.col-xs-11,.col-xs-12,.col-xs-2,.col-xs-3,.col-xs-4,.col-xs-5,.col-xs-6,.col-xs-7,.col-xs-8,.col-xs-9{float:left}.col-lg-1,.col-lg-10,.col-lg-11,.col-lg-12,.col-lg-2,.col-lg-3,.col-lg-4,.col-lg-5,.col-lg-6,.col-lg-7,.col-lg-8,.col-lg-9,.col-md-1,.col-md-10,.col-md-11,.col-md-12,.col-md-2,.col-md-3,.col-md-4,.col-md-5,.col-md-6,.col-md-7,.col-md-8,.col-md-9,.col-sm-1,.col-sm-10,.col-sm-11,.col-sm-12,.col-sm-2,.col-sm-3,.col-sm-4,.col-sm-5,.col-sm-6,.col-sm-7,.col-sm-8,.col-sm-9,.col-xs-1,.col-xs-10,.col-xs-11,.col-xs-12,.col-xs-2,.col-xs-3,.col-xs-4,.col-xs-5,.col-xs-6,.col-xs-7,.col-xs-8,.col-xs-9{position:relative;min-height:1px;padding-right:15px;padding-left:15px}label{display:inline-block;margin-bottom:5px;font-weight:700}*{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}body{font-family:\"Helvetica Neue\",Helvetica,Arial,sans-serif;color:#333}html{font-size:10px;font-family:sans-serif;-webkit-text-size-adjust:100%}");
@@ -3638,10 +3670,10 @@ void localCSSHandler()
 // ----------------------------------------- Network handling -----------------------------------------
 // ----------------------------------------------------------------------------------------------------
 
-/**
-   Get the local time from the time zone server. Return the error description prefixed by "ERROR:" if something went wrong.
-   Uses the global variable timeServerURL.
-*/
+// ************************************************************
+// Get the local time from the time zone server. Return the error description prefixed by 
+// "ERROR:" if something went wrong. Uses the global variable timeServerURL.
+// ************************************************************
 String getTimeFromTimeZoneServer() {
   debugMsg("Get Time in");
 
@@ -3676,71 +3708,31 @@ String getTimeFromTimeZoneServer() {
   return payload;
 }
 
+// ************************************************************
+// What is says on the tin
+// ************************************************************
 boolean getIsConnected() {
   return WiFi.isConnected();
 }
 
-/**
- * Set the diagnostic LED colour:
- * stepNumber 0..5
- * state: 0 = red, 1 = orange, 2 = green, 3 = blue
- */
-void setDiagnosticLED(byte stepNumber, byte state) {
-  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-    if(i > stepNumber) {
-      ledR[i] = ledG[i] = ledB[i] = 0;
-    } else if (i == stepNumber) {
-      if (state == STATUS_RED) {
-        ledR[i] = 0xff;
-        ledG[i] = 0;
-        ledB[i] = 0;
-      } else if (state == STATUS_YELLOW) {
-        ledR[i] = 0xff;
-        ledG[i] = 0x7f;
-        ledB[i] = 0x0f;
-      } else if (state == STATUS_GREEN) {
-        ledR[i] = 0;
-        ledG[i] = 0xff;
-        ledB[i] = 0;
-      } else if (state == STATUS_BLUE) {
-        ledR[i] = 0;
-        ledG[i] = 0;
-        ledB[i] = 0xff;
-      }
-    }
-  }
-  outputLEDBuffer();
-
-  // A little pause for effect
-  delay(500);
+// ************************************************************
+// Tell the Diag LED that we have connected
+// ************************************************************
+void configModeCallback (WiFiManager *myWiFiManager) {
+  debugMsg("*** Entered config mode");
+  setDiagnosticLED(DIAGS_WIFI,STATUS_BLUE);
 }
 
-// 0 = Connected, short flash, 1 = connected, update blink, 2 = connected, no time server
-void setBlinkMode(byte newMode) {
-  switch (newMode) {
-    case 0:
-      {
-        blinkOnTime = 5;
-        blinkTopTime = 1000;
-        break;
-      }
-    case 1:
-      {
-        blinkOnTime = 250;
-        blinkTopTime = 1000;
-        break;
-      }
-    case 2:
-      {
-        blinkOnTime = 250;
-        blinkTopTime = 500;
-        break;
-      }
-    case 3:
-      {
-        blinkOnTime = 100;
-        blinkTopTime = 200;
-        break;
-      }
-  }
+// ************************************************************
+// In the case that we have lost the WiFi connection, try to reconnect
+// ************************************************************
+void reconnectDroppedConnection() {
+  // Try to reconnect if we are  not connected
+   if (WiFi.status() != WL_CONNECTED) {
+      debugMsg("Attepting to reconnect dropped connection WiFi connection to " + WiFi.SSID());
+      ETS_UART_INTR_DISABLE();
+      wifi_station_disconnect();
+      ETS_UART_INTR_ENABLE();
+      WiFi.begin();
+   }
 }
