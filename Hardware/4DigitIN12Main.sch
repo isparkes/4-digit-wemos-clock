@@ -1255,10 +1255,6 @@ Wire Wire Line
 	8250 5800 8250 5650
 Wire Wire Line
 	8250 5650 8350 5650
-Wire Wire Line
-	8350 4950 7950 4950
-Wire Wire Line
-	8350 5150 7950 5150
 Connection ~ 9950 5950
 $Comp
 L 4DigitIN12Main-rescue:C-4DigitIN12Main-rescue C14
@@ -1276,9 +1272,9 @@ Wire Wire Line
 Wire Wire Line
 	10550 4550 8950 4550
 Connection ~ 8950 4550
-Text Label 7950 4950 0    60   ~ 0
+Text Label 7450 4950 0    60   ~ 0
 SCL
-Text Label 7950 5150 0    60   ~ 0
+Text Label 7450 5150 0    60   ~ 0
 SDA
 NoConn ~ 9550 4950
 Wire Wire Line
@@ -1421,4 +1417,53 @@ F 3 "http://www.st.com/content/ccc/resource/technical/document/datasheet/41/4f/b
 	1    0    0    -1  
 $EndComp
 NoConn ~ 4800 7750
+$Comp
+L Device:R R6
+U 1 1 5C1DFB53
+P 7800 4550
+F 0 "R6" H 7870 4596 50  0000 L CNN
+F 1 "10k" H 7870 4505 50  0000 L CNN
+F 2 "NixieClockMaster:R-0207_2V" V 7730 4550 50  0001 C CNN
+F 3 "~" H 7800 4550 50  0001 C CNN
+	1    7800 4550
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:R R7
+U 1 1 5C1DFC23
+P 8250 4550
+F 0 "R7" H 8320 4596 50  0000 L CNN
+F 1 "10k" H 8320 4505 50  0000 L CNN
+F 2 "NixieClockMaster:R-0207_2V" V 8180 4550 50  0001 C CNN
+F 3 "~" H 8250 4550 50  0001 C CNN
+	1    8250 4550
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8950 4550 8650 4550
+Wire Wire Line
+	8650 4550 8650 4300
+Wire Wire Line
+	8650 4300 8250 4300
+Wire Wire Line
+	7800 4300 7800 4400
+Wire Wire Line
+	8250 4400 8250 4300
+Connection ~ 8250 4300
+Wire Wire Line
+	8250 4300 7800 4300
+Wire Wire Line
+	8250 4700 8250 5150
+Connection ~ 8250 5150
+Wire Wire Line
+	8250 5150 8350 5150
+Wire Wire Line
+	7800 4700 7800 4950
+Connection ~ 7800 4950
+Wire Wire Line
+	7800 4950 8350 4950
+Wire Wire Line
+	7450 4950 7800 4950
+Wire Wire Line
+	7450 5150 8250 5150
 $EndSCHEMATC
