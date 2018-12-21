@@ -2328,7 +2328,7 @@ void setTimeFromServer(String timeString) {
 
 
 // ************************************************************
-// Check the blanking, overrideen if we have a PIR installed
+// Check the blanking, overridden if we have a PIR installed
 // ************************************************************
 boolean checkBlanking() {
   // If we are running on PIR, never use native blanking
@@ -2365,8 +2365,12 @@ boolean checkBlanking() {
 // Get the readable version of the PIR state
 // ************************************************************
 String getPIRStateDisplay() {
-  float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0; 
-  return "Motion detected " + String(lastMotionDetection, 2) + " S ago";
+  float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0;
+  String part3 = " S ago";
+  if (blanked) {
+    part3 = " S ago (blanked)";
+  }
+  return "Motion detected " + String(lastMotionDetection, 2) + part3;
 }
 
 // ************************************************************
