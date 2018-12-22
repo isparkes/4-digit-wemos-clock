@@ -403,7 +403,7 @@ void setup()
 
   testRTCTimeProvider();
   if (useRTC) {
-    getRTCTime();
+    getRTCTime(true);
     setDiagnosticLED(DIAGS_RTC,STATUS_GREEN);
   } else {
     setDiagnosticLED(DIAGS_RTC,STATUS_RED);
@@ -632,7 +632,7 @@ void performOncePerMinuteProcessing() {
     }
     useWiFi--;
   } else {
-    getRTCTime();
+    getRTCTime(true);
   }
 
   if (useRTC) {
@@ -2517,7 +2517,7 @@ void setBlinkMode(byte newMode) {
 // ************************************************************
 // Get the time from the RTC
 // ************************************************************
-void getRTCTime() {
+String getRTCTime(boolean setInternalTime) {
   testRTCTimeProvider();
   if (useRTC) {
     Clock.getTime();
@@ -2528,10 +2528,15 @@ void getRTCTime() {
     byte mins = Clock.minute;
     byte secs = Clock.second;
 
-    debugMsg("Got RTC time: " + String(years) + ":" + String(months) + ":" + String(days) + " " + String(hours) + ":" + String(mins) + ":" + String(secs));
+    String returnValue = String(years) + ":" + String(months) + ":" + String(days) + " " + String(hours) + ":" + String(mins) + ":" + String(secs);
+    debugMsg("Got RTC time: " + returnValue);
 
-    // Set the internal time provider to the value we got
-    setTime(hours, mins, secs, days, months, years);
+    if (setInternalTime) {
+      // Set the internal time provider to the value we got
+      setTime(hours, mins, secs, days, months, years);
+    }
+
+    return returnValue;
   }
 }
 
@@ -2971,11 +2976,23 @@ void rootPageHandler() {
   float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
   String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
   String rtcState = useRTC ? "Installed" : "Not installed";
+  String timeSource;
+  if (useWiFi > 0) {
+    timeSource = "WiFi (" + String(useWiFi) + ")";
+  } else if (useRTC) {
+    timeSource = "RTC";
+  } else {
+    timeSource = "Internal";
+  }
+  String currentTime = String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
   response_message += getTableHead2Col("Clock information", "Name", "Value");
   response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
   response_message += getTableRow2Col("Digit brightness %", String(digitBrightness,2));
   response_message += getTableRow2Col("Motion Sensor", motionSensorState);
+  response_message += getTableRow2Col("Time Source", timeSource);
+  response_message += getTableRow2Col("Display Time", currentTime);
   response_message += getTableRow2Col("Real Time Clock", rtcState);
+  response_message += getTableRow2Col("RTC Time", getRTCTime(false));
   response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
   response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs,2));
   response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs,2));
