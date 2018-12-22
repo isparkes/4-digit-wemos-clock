@@ -1884,12 +1884,10 @@ void outputDisplay()
 
     // --------------------- Scroll ---------------------
 
-    // manage fading, each impression we show 1 fade step less of the old
-    // digit and 1 fade step more of the new
-    // manage fading, each impression we show 1 fade step less of the old
+    // manage scrolling, each impression we show 1 fade step less of the old
     // digit and 1 fade step more of the new
     if (tmpDispType == SCROLL) {
-      digitSwitchTime = digitOffTime;
+      digitSwitchTime = DIGIT_DISPLAY_NEVER;
       if (NumberArray[i] != currNumberArray[i]) {
         if (fadeState[i] == 0) {
           // Start the fade
@@ -1909,6 +1907,8 @@ void outputDisplay()
 
     // --------------------- Fade ---------------------
 
+    // manage fading, each impression we show 1 fade step less of the old
+    // digit and 1 fade step more of the new
     if (tmpDispType == FADE) {
       float countsPerStep = (digitOffTime - digitOnTime) / fadeSteps;
 
