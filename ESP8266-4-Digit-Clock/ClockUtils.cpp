@@ -41,7 +41,7 @@ String getHTMLHead(boolean isConnected) {
   } else {
     header += "<link href=\"local.css\" rel=\"stylesheet\">";
   }
-  header += "<title>Arduino Nixie Clock Time Module</title></head>";
+  header += "<title>4 Digit Nixie Clock</title></head>";
   header += "<body>";
   return header;
 }
@@ -53,7 +53,7 @@ String getNavBar() {
   String navbar = "<nav class=\"navbar navbar-inverse navbar-fixed-top\">";
   navbar += "<div class=\"container-fluid\"><div class=\"navbar-header\"><button type=\"button\" class=\"navbar-toggle collapsed\" data-toggle=\"collapse\" data-target=\"#navbar\" aria-expanded=\"false\" aria-controls=\"navbar\">";
   navbar += "<span class=\"sr-only\">Toggle navigation</span><span class=\"icon-bar\"></span><span class=\"icon-bar\"></span><span class=\"icon-bar\"></span></button>";
-  navbar += "<a class=\"navbar-brand\" href=\"#\">Arduino Nixie Clock Time Module</a></div><div id=\"navbar\" class=\"navbar-collapse collapse\"><ul class=\"nav navbar-nav navbar-right\">";
+  navbar += "<a class=\"navbar-brand\" href=\"https://www.nixieclock.biz\">4 Digit Nixie Clock</a></div><div id=\"navbar\" class=\"navbar-collapse collapse\"><ul class=\"nav navbar-nav navbar-right\">";
   navbar += "<li><a href=\"/\">Summary</a></li><li><a href=\"/time\">Configure Time Server</a></li><li><a href=\"/clockconfig\">Configure clock settings</a></li></ul></div></div></nav>";
   return navbar;
 } 

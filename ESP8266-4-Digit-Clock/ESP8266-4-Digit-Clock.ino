@@ -2992,7 +2992,9 @@ void rootPageHandler() {
   response_message += getTableRow2Col("Time Source", timeSource);
   response_message += getTableRow2Col("Display Time", currentTime);
   response_message += getTableRow2Col("Real Time Clock", rtcState);
-  response_message += getTableRow2Col("RTC Time", getRTCTime(false));
+  if (useRTC) {
+    response_message += getTableRow2Col("RTC Time", getRTCTime(false));
+  }
   response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
   response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs,2));
   response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs,2));
