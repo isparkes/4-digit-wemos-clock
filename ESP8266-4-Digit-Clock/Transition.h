@@ -31,6 +31,8 @@ class Transition
     int _holdDuration;
     unsigned long _started;
     unsigned long _end;
+    boolean _didTidyUpAtEnd;
+    boolean _didCallOutAtBlanking;
     byte _regularDisplay[DIGIT_COUNT] = {0, 0, 0, 0};
     byte _alternateDisplay[DIGIT_COUNT] = {0, 0, 0, 0};
     boolean _savedScrollback;

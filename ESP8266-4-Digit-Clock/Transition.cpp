@@ -13,12 +13,14 @@ Transition::Transition(int effectInDuration, int effectOutDuration, int holdDura
   _holdDuration = holdDuration;
   _started = 0;
   _end = 0;
+  _didTidyUpAtEnd = true;
 }
 
 void Transition::start(unsigned long now) {
   if (_end < now) {
     _started = now;
     _end = getEnd();
+    _didTidyUpAtEnd = false;
     saveCurrentDisplayType(); 
   }
   // else we are already running!
@@ -35,21 +37,22 @@ boolean Transition::scrollMsg(unsigned long now)
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      // Scroll -1 -> -6
+      // Scroll normal out
       scroll(-(msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration - 1);
     } else if (msCount < _effectInDuration * 2) {
       loadAlternateValues();
-      // Scroll 5 -> 0
+      // Scroll alternate message in
       scroll(3 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
+      // Hold alternate
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
+      // Scroll out alternate
       loadAlternateValues();
-      // Scroll 1 -> 6
       scroll(((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      // Scroll 0 -> -5
+      // Scoll in normal
       scroll(((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration - 5);
     }
      return true;  // we are still running
@@ -64,16 +67,19 @@ boolean Transition::scrambleMsg(unsigned long now)
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      scramble(msCount, 5 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration, 6);
+      scramble(msCount, 5 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration, DIGIT_COUNT);
     } else if (msCount < _effectInDuration * 2) {
       loadAlternateValues();
       scramble(msCount, 0, 5 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
+      // Hold alternate
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
+      // Scramble alternate
       loadAlternateValues();
       scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
+      // Scramble normal
       loadRegularValues();
       scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
     }
@@ -87,10 +93,11 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
   if (now < _end) {
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
+      // Scroll normal out
       loadRegularValues();
       scroll((msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2) {
-      restoreCurrentDisplayType();
+      // Scroll alternate in
       loadAlternateValues();
       scroll(3 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
    } else if (msCount < _effectInDuration * 2 + _holdDuration) {
@@ -101,6 +108,10 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
       scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
+    } else if ((now == _end) && !_didTidyUpAtEnd) {
+      // restore default display type
+      restoreCurrentDisplayType();
+      _didTidyUpAtEnd = true;
     }
     return true;  // we are still running
   }
