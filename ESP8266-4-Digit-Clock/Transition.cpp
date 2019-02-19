@@ -13,14 +13,12 @@ Transition::Transition(int effectInDuration, int effectOutDuration, int holdDura
   _holdDuration = holdDuration;
   _started = 0;
   _end = 0;
-  _didTidyUpAtEnd = true;
 }
 
 void Transition::start(unsigned long now) {
   if (_end < now) {
     _started = now;
     _end = getEnd();
-    _didTidyUpAtEnd = false;
     saveCurrentDisplayType(); 
   }
   // else we are already running!
@@ -31,29 +29,37 @@ boolean Transition::isMessageOnDisplay(unsigned long now)
   return (now < _end);
 }
 
+// we need to get the seconds updated, otherwise we show the old
+// time at the end of the stunt
+void Transition::updateRegularDisplaySeconds(int seconds) {
+  _regularDisplay[5] = seconds % 10;
+  _regularDisplay[4] = seconds / 10;
+}
+
 boolean Transition::scrollMsg(unsigned long now)
 {
   if (now < _end) {
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      // Scroll normal out
-      scroll(-(msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration - 1);
+      // Scroll -1 -> -6
+      scroll(-(msCount % _effectInDuration) * 6 / _effectInDuration - 1);
     } else if (msCount < _effectInDuration * 2) {
       loadAlternateValues();
-      // Scroll alternate message in
-      scroll(3 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
+      // Scroll 5 -> 0
+      scroll(5 - (msCount % _effectInDuration) * 6 / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
-      // Hold alternate
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
-      // Scroll out alternate
       loadAlternateValues();
-      scroll(((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
+      // Scroll 1 -> 6
+      scroll(((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      // Scoll in normal
-      scroll(((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration - 5);
+      // Scroll 0 -> -5
+      scroll(((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration - 5);
+    } else {
+      _end = 0;
     }
      return true;  // we are still running
   }
@@ -67,21 +73,20 @@ boolean Transition::scrambleMsg(unsigned long now)
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      scramble(msCount, 5 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration, DIGIT_COUNT);
+      scramble(msCount, 5 - (msCount % _effectInDuration) * 6 / _effectInDuration, 6);
     } else if (msCount < _effectInDuration * 2) {
       loadAlternateValues();
-      scramble(msCount, 0, 5 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
+      scramble(msCount, 0, 5 - (msCount % _effectInDuration) * 6 / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
-      // Hold alternate
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
-      // Scramble alternate
       loadAlternateValues();
-      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
+      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
-      // Scramble normal
       loadRegularValues();
-      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
+      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1, 6);
+    } else {
+      _end = 0;
     }
     return true;  // we are still running
   }
@@ -93,25 +98,22 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
   if (now < _end) {
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
-      // Scroll normal out
       loadRegularValues();
-      scroll((msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
+      scroll(-(msCount % _effectInDuration) * 6 / _effectInDuration - 1);
     } else if (msCount < _effectInDuration * 2) {
-      // Scroll alternate in
+      restoreCurrentDisplayType();
       loadAlternateValues();
-      scroll(3 - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
-   } else if (msCount < _effectInDuration * 2 + _holdDuration) {
+      scroll(5 - (msCount % _effectInDuration) * 6 / _effectInDuration);
+    } else if (msCount < _effectInDuration * 2 + _holdDuration) {
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
       loadAlternateValues();
-      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
+      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
-    } else if ((now == _end) && !_didTidyUpAtEnd) {
-      // restore default display type
-      restoreCurrentDisplayType();
-      _didTidyUpAtEnd = true;
+      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1, 6);
+    } else {
+      _end = 0;
     }
     return true;  // we are still running
   }
@@ -123,16 +125,16 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
  * -ve scroll left
  */
 int Transition::scroll(byte count) {
-  byte copy[DIGIT_COUNT] = {0, 0, 0, 0};
+  byte copy[6] = {0, 0, 0, 0, 0, 0};
   memcpy(copy, NumberArray, sizeof(copy));
   byte offset = 0;
   byte slope = 1;
   if (count < 0) {
     count = -count;
-    offset = DIGIT_COUNT-1;
+    offset = 5;
     slope = -1;
   }
-  for (byte i=0; i<DIGIT_COUNT; i++) {
+  for (byte i=0; i<6; i++) {
     if (i < count) {
       displayType[offset + i * slope] = BLANKED;
     }
