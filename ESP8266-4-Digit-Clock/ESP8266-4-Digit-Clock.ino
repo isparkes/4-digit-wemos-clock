@@ -2534,6 +2534,7 @@ String getRTCTime(boolean setInternalTime) {
     if (setInternalTime) {
       // Set the internal time provider to the value we got
       setTime(hours, mins, secs, days, months, years);
+      debugMsg("Set Internal time to: " + returnValue);
     }
 
     return returnValue;
