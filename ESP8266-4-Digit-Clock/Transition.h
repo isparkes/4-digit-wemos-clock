@@ -15,7 +15,6 @@ class Transition
     Transition(int, int, int);
     void start(unsigned long);
     boolean isMessageOnDisplay(unsigned long);
-    void updateRegularDisplaySeconds(int seconds);
     boolean scrollMsg(unsigned long);
     boolean scrambleMsg(unsigned long);
     boolean scrollInScrambleOut(unsigned long);

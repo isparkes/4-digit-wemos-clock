@@ -29,35 +29,28 @@ boolean Transition::isMessageOnDisplay(unsigned long now)
   return (now < _end);
 }
 
-// we need to get the seconds updated, otherwise we show the old
-// time at the end of the stunt
-void Transition::updateRegularDisplaySeconds(int seconds) {
-  _regularDisplay[5] = seconds % 10;
-  _regularDisplay[4] = seconds / 10;
-}
-
 boolean Transition::scrollMsg(unsigned long now)
 {
   if (now < _end) {
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      // Scroll -1 -> -6
-      scroll(-(msCount % _effectInDuration) * 6 / _effectInDuration - 1);
+      // Scroll -1 -> -DIGIT_COUNT
+      scroll(-(msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration - 1);
     } else if (msCount < _effectInDuration * 2) {
       loadAlternateValues();
-      // Scroll 5 -> 0
-      scroll(5 - (msCount % _effectInDuration) * 6 / _effectInDuration);
+      // Scroll (DIGIT_COUNT-1) -> 0
+      scroll((DIGIT_COUNT-1) - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
       loadAlternateValues();
-      // Scroll 1 -> 6
-      scroll(((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1);
+      // Scroll 1 -> DIGIT_COUNT
+      scroll(((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      // Scroll 0 -> -5
-      scroll(((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration - 5);
+      // Scroll 0 -> -(DIGIT_COUNT-1)
+      scroll(((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration - (DIGIT_COUNT-1));
     } else {
       _end = 0;
     }
@@ -73,18 +66,18 @@ boolean Transition::scrambleMsg(unsigned long now)
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      scramble(msCount, 5 - (msCount % _effectInDuration) * 6 / _effectInDuration, 6);
+      scramble(msCount, (DIGIT_COUNT-1) - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration, DIGIT_COUNT);
     } else if (msCount < _effectInDuration * 2) {
       loadAlternateValues();
-      scramble(msCount, 0, 5 - (msCount % _effectInDuration) * 6 / _effectInDuration);
+      scramble(msCount, 0, (DIGIT_COUNT-1) - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
       loadAlternateValues();
-      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1);
+      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1, 6);
+      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
     } else {
       _end = 0;
     }
@@ -99,19 +92,19 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
     int msCount = now - _started;
     if (msCount < _effectInDuration) {
       loadRegularValues();
-      scroll(-(msCount % _effectInDuration) * 6 / _effectInDuration - 1);
+      scroll(-(msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration - 1);
     } else if (msCount < _effectInDuration * 2) {
       restoreCurrentDisplayType();
       loadAlternateValues();
-      scroll(5 - (msCount % _effectInDuration) * 6 / _effectInDuration);
+      scroll((DIGIT_COUNT-1) - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
       loadAlternateValues();
-      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1);
+      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * 6 / _effectOutDuration + 1, 6);
+      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
     } else {
       _end = 0;
     }
@@ -125,16 +118,16 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
  * -ve scroll left
  */
 int Transition::scroll(byte count) {
-  byte copy[6] = {0, 0, 0, 0, 0, 0};
+  byte copy[DIGIT_COUNT] = {0, 0, 0, 0};
   memcpy(copy, NumberArray, sizeof(copy));
   byte offset = 0;
   byte slope = 1;
   if (count < 0) {
     count = -count;
-    offset = 5;
+    offset = (DIGIT_COUNT-1);
     slope = -1;
   }
-  for (byte i=0; i<6; i++) {
+  for (byte i=0; i<DIGIT_COUNT; i++) {
     if (i < count) {
       displayType[offset + i * slope] = BLANKED;
     }
