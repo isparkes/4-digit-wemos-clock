@@ -6,9 +6,9 @@
 #define ClockDefs_h
 
 // -------------------------------------------------------------------------------
-#define MIN_DIM_DEFAULT       100  // The default minimum dim count
-#define MIN_DIM_MIN           100  // The minimum dim count
-#define MIN_DIM_MAX           500  // The maximum dim count
+#define MIN_DIM_DEFAULT       500  // The default minimum dim count
+#define MIN_DIM_MIN           250  // The minimum dim count
+#define MIN_DIM_MAX           1000 // The maximum dim count
 
 // -------------------------------------------------------------------------------
 #define SENSOR_LOW_MIN        0
@@ -141,11 +141,10 @@
 
 // -------------------------------------------------------------------------------
 #define DATE_FORMAT_MIN                 0
-#define DATE_FORMAT_YYMMDD              0
-#define DATE_FORMAT_MMDDYY              1
-#define DATE_FORMAT_DDMMYY              2
-#define DATE_FORMAT_MAX                 2
-#define DATE_FORMAT_DEFAULT             2
+#define DATE_FORMAT_MMDD                0
+#define DATE_FORMAT_DDMM                1
+#define DATE_FORMAT_MAX                 1
+#define DATE_FORMAT_DEFAULT             1
 
 // -------------------------------------------------------------------------------
 #define DAY_BLANKING_MIN                0
@@ -220,9 +219,6 @@
 
 // -------------------------------------------------------------------------------
 #define DIGIT_COUNT                     4
-
-// -------------------------------------------------------------------------------
-#define BUILTIN_LED_PIN                 1
 
 // -------------------------------------------------------------------------------
 #define CONFIG_PORTAL_TIMEOUT           60

@@ -22,6 +22,8 @@
 //*                                                                                *
 //*  nixie@protonmail.ch                                                           *
 //*                                                                                *
+//*  board def: http://arduino.esp8266.com/stable/package_esp8266com_index.json    *
+//*                                                                                *
 //**********************************************************************************
 //**********************************************************************************
 // Standard Libraries
@@ -49,7 +51,7 @@
 // Software version shown in config menu
 #define SOFTWARE_VERSION    1
 
-#define DEBUG
+#define DEBUG_OFF
 
 #ifdef DEBUG
  #define debugMsg(x)  Serial.println (x)
@@ -65,9 +67,6 @@
 #define DEFAULT_TIME_SERVER_URL_1 "http://its.internet-box.ch/getTime/Europe/Zurich"
 #define DEFAULT_TIME_SERVER_URL_2 "http://time-zone-server.scapp.io/getTime/Europe/Zurich"
 
-// used for flashing the blue LED
-int blinkOnTime = 1000;
-int blinkTopTime = 2000;
 unsigned long lastMillis = 0;
 
 String timeServerURL = DEFAULT_TIME_SERVER_URL_1;
@@ -83,7 +82,7 @@ ESP8266WebServer server(80);
 // ***** Pin Defintions ****** Pin Defintions ****** Pin Defintions ******
 
 #define inputPin1   0     // D3
-#define pirPin      2     // D4
+#define pirPin      2     // D4 - Also blue LED pin
 #define LED_DOUT    3     // RX defined by DMA output of library
 #define LDRPin      A0    // ADC input
 
@@ -174,6 +173,7 @@ unsigned long pirTimeout = PIR_TIMEOUT_DEFAULT;
 unsigned long pirLastSeen = 0;
 boolean pirInstalled = false;
 boolean usePIRPullup = true;
+int pirConsecutiveCounts = 0;
 
 boolean triggeredThisSec = false;
 
@@ -189,10 +189,6 @@ boolean led1State;
 boolean led2State;
 
 byte ledMode = 0;       // Separator LED mode
-
-// Blinking colons led in settings modes
-int ledBlinkCtr = 0;
-int ledBlinkNumber = 0;
 
 byte backlightMode = BACKLIGHT_DEFAULT;
 
@@ -250,6 +246,7 @@ void setup()
   pinMode(CLOCKPin, OUTPUT);
   pinMode(DATA1Pin, OUTPUT);
   pinMode(LEDPin1, OUTPUT);
+  pinMode(LEDPin2, OUTPUT);
   pinMode(LEDPin2, OUTPUT);
 
   // NOTE: Grounding the input pin causes it to actuate
@@ -318,12 +315,7 @@ void setup()
   server.begin();
   debugMsg("HTTP server started");
 
-  if (usePIRPullup) {
-    debugMsg("Setting PIR pullup");
-    pinMode(pirPin, INPUT_PULLUP);
-  } else {
-    pinMode(pirPin, INPUT);
-  }
+  setPIRPullup(usePIRPullup);
 
   // **********************************************************************
 
@@ -526,15 +518,11 @@ void loop()
   // Prepare the tick and backlight LEDs
   setLeds();
 
+  if(digitalRead(pirPin) == HIGH) {
+    pirConsecutiveCounts++;
+  }
+  
   outputDisplay();
-
-//  // ******************* Blue LED pulse *******************
-//  if ((nowMillis - lastMillis) > blinkTopTime) {
-//    lastMillis = nowMillis;
-//    digitalWrite(BUILTIN_LED_PIN, false);
-//  } else if ((nowMillis - lastMillis) > blinkOnTime) {
-//    digitalWrite(BUILTIN_LED_PIN, true);
-//  }
 }
 
 // ************************************************************
@@ -547,7 +535,7 @@ void performOncePerSecondProcessing() {
 
   // Change the direction of the pulse
   upOrDown = !upOrDown;
-
+  
   // If we are in temp display mode, decrement the count
   if (tempDisplayModeDuration > 0) {
     if (tempDisplayModeDuration > 1000) {
@@ -599,6 +587,7 @@ void performOncePerSecondProcessing() {
   if ((valueDisplayTime > 0) && (valueDisplayTime < 0xff)) {
     valueDisplayTime--;
   }
+  pirConsecutiveCounts = 0;
 }
 
 // ************************************************************
@@ -611,15 +600,12 @@ void performOncePerMinuteProcessing() {
   if (!lastTimeFromServer.startsWith("ERROR:")) {
     setTimeFromServer(lastTimeFromServer);
 
-    setBlinkMode(1);
-
-    // all OK, flash 10 millisecond per second
+    // all OK
     debugMsg("Update from time server OK");
 
     lastUpdateFromServer = nowMillis;
   } else {
-    setBlinkMode(2);
-    debugMsg("No time server update");
+    debugMsg("Connected, time server error");
   }
 
   if (useWiFi > 0) {
@@ -795,11 +781,12 @@ void setLeds()
 // we mark that we have a PIR and we should start to respect
 // the sensor over configured blanking.
 // Returns true if PIR sensor is installed and we are blanked
+//
+// To deal with noise, we use a counter to detect a number of 
+// consecutive counts before counting the PIR as "detected"
 // ************************************************************
 boolean checkPIR(unsigned long nowMillis) {
-  boolean pirvalue = (digitalRead(pirPin) == HIGH);
-
-  if (pirvalue) {
+  if (pirConsecutiveCounts > (lastImpressionsPerSec/2)) {
     pirLastSeen = nowMillis;
     return false;
   } else {
@@ -1677,14 +1664,13 @@ void loadNumberArrayMinsSecs() {
 // ************************************************************
 void loadNumberArrayDayMonth() {
   switch (dateFormat) {
-    case DATE_FORMAT_YYMMDD:
-    case DATE_FORMAT_MMDDYY:
+    case DATE_FORMAT_MMDD:
       NumberArray[3] = day() % 10;
       NumberArray[2] = day() / 10;
       NumberArray[1] = month() % 10;
       NumberArray[0] = month() / 10;
       break;
-    case DATE_FORMAT_DDMMYY:
+    case DATE_FORMAT_DDMM:
       NumberArray[3] = month() % 10;
       NumberArray[2] = month() / 10;
       NumberArray[1] = day() % 10;
@@ -2080,13 +2066,10 @@ void allBright() {
 // ************************************************************
 void highlightMonthsDateFormat() {
   switch (dateFormat) {
-    case DATE_FORMAT_YYMMDD:
-      highlight2and3();
-      break;
-    case DATE_FORMAT_MMDDYY:
+    case DATE_FORMAT_MMDD:
       highlight0and1();
       break;
-    case DATE_FORMAT_DDMMYY:
+    case DATE_FORMAT_DDMM:
       highlight2and3();
       break;
   }
@@ -2097,14 +2080,11 @@ void highlightMonthsDateFormat() {
 // ************************************************************
 void highlightDaysDateFormat() {
   switch (dateFormat) {
-    case DATE_FORMAT_YYMMDD:
+    case DATE_FORMAT_DDMM:
       highlight0and1();
       break;
-    case DATE_FORMAT_MMDDYY:
+    case DATE_FORMAT_MMDD:
       highlight2and3();
-      break;
-    case DATE_FORMAT_DDMMYY:
-      highlight0and1();
       break;
   }
 }
@@ -2478,33 +2458,13 @@ void setDiagnosticLED(byte stepNumber, byte state) {
   delay(500);
 }
 
-// 0 = Connected, short flash, 1 = connected, update blink, 2 = connected, no time server
-void setBlinkMode(byte newMode) {
-  switch (newMode) {
-    case 0:
-      {
-        blinkOnTime = 5;
-        blinkTopTime = 1000;
-        break;
-      }
-    case 1:
-      {
-        blinkOnTime = 250;
-        blinkTopTime = 1000;
-        break;
-      }
-    case 2:
-      {
-        blinkOnTime = 250;
-        blinkTopTime = 500;
-        break;
-      }
-    case 3:
-      {
-        blinkOnTime = 100;
-        blinkTopTime = 200;
-        break;
-      }
+void setPIRPullup(boolean newState) {
+  if (newState) {
+    debugMsg("Setting PIR pullup");
+    pinMode(pirPin, INPUT_PULLUP);
+  } else {
+    debugMsg("Resetting PIR pullup");
+    pinMode(pirPin, INPUT);
   }
 }
 
@@ -2933,7 +2893,19 @@ void rootPageHandler() {
     response_message += getTableRow2Col("WLAN SSID", WiFi.SSID());
     response_message += getTableRow2Col("Time server URL", timeServerURL);
     lastTimeFromServer = getTimeFromTimeZoneServer();
-    response_message += getTableRow2Col("Time according to server", lastTimeFromServer);
+
+    if (lastTimeFromServer.startsWith("ERROR:")) {
+      response_message += getTableRow2Col("Time according to server", lastTimeFromServer);    
+    } else {
+      int years = getIntValue(lastTimeFromServer, ',', 0);
+      byte months = getIntValue(lastTimeFromServer, ',', 1);
+      byte days = getIntValue(lastTimeFromServer, ',', 2);
+      byte hours = getIntValue(lastTimeFromServer, ',', 3);
+      byte minutes = getIntValue(lastTimeFromServer, ',', 4);
+      byte seconds = getIntValue(lastTimeFromServer, ',', 5);
+      String formattedTime = String(years)+":"+String(months)+":"+String(days)+" "+String(hours)+":"+String(minutes)+":"+String(seconds);
+      response_message += getTableRow2Col("Time according to server", formattedTime);    
+    }
   }
   else
   {
@@ -3009,10 +2981,10 @@ void rootPageHandler() {
   response_message += getTableRow2Col("Free heap", ESP.getFreeHeap());
   response_message += getTableRow2Col("Boot version", ESP.getBootVersion());
   response_message += getTableRow2Col("CPU Freqency (MHz)", ESP.getCpuFreqMHz());
-  response_message += getTableRow2Col("Flash speed (Hz)", ESP.getFlashChipSpeed());
+  response_message += getTableRow2Col("Flash speed (MHz)", ESP.getFlashChipSpeed()/1000000);
   response_message += getTableRow2Col("SDK version", ESP.getSdkVersion());
-  response_message += getTableRow2Col("Chip ID", ESP.getChipId());
-  response_message += getTableRow2Col("Flash Chip ID", ESP.getFlashChipId());
+  response_message += getTableRow2Col("Chip ID", String(ESP.getChipId(), HEX));
+  response_message += getTableRow2Col("Flash Chip ID", String(ESP.getFlashChipId(), HEX));
   response_message += getTableRow2Col("Flash size", ESP.getFlashChipRealSize());
   response_message += getTableFoot();
 
@@ -3369,6 +3341,8 @@ void clockConfigPageHandler() {
       debugMsg("-> Set usePirPullup off");
       usePIRPullup = false;
     }
+
+    setPIRPullup(usePIRPullup);
   }
 
   // -----------------------------------------------------------------------------
@@ -3475,9 +3449,8 @@ void clockConfigPageHandler() {
 
   // Date format
   response_message += getDropDownHeader("Date format:", "dateFormat", false);
-  response_message += getDropDownOption("0", "YY-MM-DD", (dateFormat == 0));
-  response_message += getDropDownOption("1", "MM-DD-YY", (dateFormat == 1));
-  response_message += getDropDownOption("2", "DD-MM-YY", (dateFormat == 2));
+  response_message += getDropDownOption("0", "MM-DD", (dateFormat == 0));
+  response_message += getDropDownOption("1", "DD-MM", (dateFormat == 1));
   response_message += getDropDownFooter();
 
   // Day blanking

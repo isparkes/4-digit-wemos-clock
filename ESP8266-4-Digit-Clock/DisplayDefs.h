@@ -71,5 +71,6 @@ const byte colourTimeB[] = {   0,   0,   0,   0,  32, 190, 255, 255, 255, 255};
 #define LED_BLINK_DEFAULT   LED_RAILROAD
 #define LED_MODE_MAX        3
 
+#define DIGIT_COUNT 4
 
 #endif

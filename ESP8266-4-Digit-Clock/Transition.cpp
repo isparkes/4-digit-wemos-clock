@@ -74,10 +74,10 @@ boolean Transition::scrambleMsg(unsigned long now)
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
       loadAlternateValues();
-      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
+      scramble(msCount, 0, ((msCount - _holdDuration - _effectInDuration * 2) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
+      scramble(msCount, ((msCount - _holdDuration - _effectInDuration * 2) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
     } else {
       _end = 0;
     }
@@ -101,13 +101,13 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
       loadAlternateValues();
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration) {
       loadAlternateValues();
-      scramble(msCount, 0, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
+      scramble(msCount, 0, ((msCount - _holdDuration - _effectInDuration * 2) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1);
     } else if (msCount < _effectInDuration * 2 + _holdDuration + _effectOutDuration * 2) {
       loadRegularValues();
-      scramble(msCount, ((msCount - _holdDuration) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
+      scramble(msCount, ((msCount - _holdDuration - _effectInDuration * 2) % _effectOutDuration) * DIGIT_COUNT / _effectOutDuration + 1, DIGIT_COUNT);
     } else {
       _end = 0;
-    }
+   }
     return true;  // we are still running
   }
   return false;   // We aren't running
@@ -117,11 +117,11 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
  * +ve scroll right
  * -ve scroll left
  */
-int Transition::scroll(byte count) {
+int Transition::scroll(int8_t count) {
   byte copy[DIGIT_COUNT] = {0, 0, 0, 0};
   memcpy(copy, NumberArray, sizeof(copy));
-  byte offset = 0;
-  byte slope = 1;
+  int8_t offset = 0;
+  int8_t slope = 1;
   if (count < 0) {
     count = -count;
     offset = (DIGIT_COUNT-1);
@@ -158,23 +158,23 @@ int Transition::scramble(int msCount, byte start, byte end) {
 }
 
 void Transition::setRegularValues() {
-  memcpy(_regularDisplay, NumberArray, sizeof(_regularDisplay));    
+  memcpy(_regularDisplay, NumberArray, sizeof(_regularDisplay));
 }
 
 void Transition::setAlternateValues() {
-  memcpy(_alternateDisplay, NumberArray, sizeof(_alternateDisplay));    
+  memcpy(_alternateDisplay, NumberArray, sizeof(_alternateDisplay));
 }
 
 void Transition::loadRegularValues() {
-  memcpy(NumberArray, _regularDisplay, sizeof(_regularDisplay));    
+  memcpy(NumberArray, _regularDisplay, sizeof(_regularDisplay));
 }
 
 void Transition::loadAlternateValues() {
-  memcpy(NumberArray, _alternateDisplay, sizeof(_alternateDisplay));    
+  memcpy(NumberArray, _alternateDisplay, sizeof(_alternateDisplay));
 }
 
 void Transition::saveCurrentDisplayType() {
-  memcpy(_savedDisplayType, displayType, sizeof(_savedDisplayType));  
+  memcpy(_savedDisplayType, displayType, sizeof(_savedDisplayType));
   _savedScrollback = scrollback;
   scrollback = false;
 }
