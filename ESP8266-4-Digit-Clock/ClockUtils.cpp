@@ -197,85 +197,49 @@ String getDropDownFooter() {
 }
 
 String getNumberInput(String heading, String input_name, unsigned int minVal, unsigned int maxVal, unsigned int value, boolean disabled) {
-  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-3\" for=\"";
-  result += input_name;
-  result += "\">";
-  result += heading;
-  result += "</label><div class=\"col-xs-2\"><input type=\"number\" class=\"form-control\" name=\"";
-  result += input_name;
-  result += "\" id=\"";
-  result += input_name;
-  result += "\" min=\"";
-  result += minVal;
-  result += "\" max=\"";
-  result += maxVal;
-  result += "\" value=\"";
-  result += value;
-  if (disabled) {
-    result += " disabled";
-  }
-  result += "\"></div></div>";
+  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-3\" for=\"" + input_name + "\">" + heading;
+  result += "</label><div class=\"col-xs-2\"><input type=\"number\" class=\"form-control\" name=\"" + input_name;
+  result += "\" id=\"" + input_name;
+  result += "\" min=\"" + String(minVal);
+  result += "\" max=\"" + String(maxVal);
+  result += "\" value=\"" + String(value) + "\"";
+  if (disabled) result += " disabled";
+  result += "></div></div>";
 
   return result;
 }
 
 String getNumberInputWide(String heading, String input_name, byte minVal, byte maxVal, byte value, boolean disabled) {
-  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-8\" for=\"";
-  result += input_name;
-  result += "\">";
-  result += heading;
-  result += "</label><div class=\"col-xs-2\"><input type=\"number\" class=\"form-control\" name=\"";
-  result += input_name;
-  result += "\" id=\"";
-  result += input_name;
-  result += "\" min=\"";
-  result += minVal;
-  result += "\" max=\"";
-  result += maxVal;
-  result += "\" value=\"";
-  result += value;
-  if (disabled) {
-    result += " disabled";
-  }
-  result += "\"></div></div>";
+  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-8\" for=\"" +input_name + "\">" + heading;
+  result += "</label><div class=\"col-xs-2\"><input type=\"number\" class=\"form-control\" name=\"" + input_name;
+  result += "\" id=\"" + input_name;
+  result += "\" min=\"" + String(minVal);
+  result += "\" max=\"" + String(maxVal);
+  result += "\" value=\"" + String(value) + "\"";
+  if (disabled) result += " disabled";
+  result += "></div></div>";
 
   return result;
 }
 
 String getTextInput(String heading, String input_name, String value, boolean disabled) {
-  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-3\" for=\"";
-  result += input_name;
-  result += "\">";
-  result += heading;
-  result += "</label><div class=\"col-xs-2\"><input type=\"text\" class=\"form-control\" name=\"";
-  result += input_name;
-  result += "\" id=\"";
-  result += input_name;
-  result += "\" value=\"";
-  result += value;
-  if (disabled) {
-    result += " disabled";
-  }
-  result += "\"></div></div>";
+  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-3\" for=\"" + input_name + "\">" + heading;
+  result += "</label><div class=\"col-xs-2\"><input type=\"text\" class=\"form-control\" name=\"" + input_name;
+  result += "\" id=\"" + input_name;
+  result += "\" value=\"" + value + "\"";
+  if (disabled) result += " disabled";
+  result += "></div></div>";
 
   return result;
 }
 
 String getTextInputWide(String heading, String input_name, String value, boolean disabled) {
-  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-3\" for=\"";
-  result += input_name;
-  result += "\">";
-  result += heading;
-  result += "</label><div class=\"col-xs-8\"><input type=\"text\" class=\"form-control\" name=\"";
-  result += input_name;
-  result += "\" id=\"";
-  result += input_name;
-  result += "\" value=\"";
-  result += value;
-  if (disabled) {
-    result += " disabled";
-  }
-  result += "\"></div></div>";
+  String result = "<div class=\"form-group\"><label class=\"control-label col-xs-3\" for=\"" + input_name + "\">" + heading;
+  result += "</label><div class=\"col-xs-8\"><input type=\"text\" class=\"form-control\" name=\"" + input_name;
+  result += "\" id=\"" + input_name;
+  result += "\" value=\"" + value + "\"";
+  if (disabled) result += " disabled";
+  result += "></div></div>";
 
   return result;
 }
