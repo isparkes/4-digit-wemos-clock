@@ -30,6 +30,7 @@
 #include <FS.h>
 #include <Wire.h>
 #include <ESP8266HTTPClient.h>
+#include <ESP8266HTTPUpdateServer.h>
 
 // Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
 // using the ZIP files in the "libraries" directory
@@ -72,6 +73,7 @@ unsigned long lastMillis = 0;
 String timeServerURL = DEFAULT_TIME_SERVER_URL_1;
 
 ESP8266WebServer server(80);
+ESP8266HTTPUpdateServer httpUpdater;
 
 //**********************************************************************************
 //**********************************************************************************
@@ -332,7 +334,7 @@ void setup()
     if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
       return server.requestAuthentication();
     }
-    return resetWifiPageHandler();
+    return resetWiFiPageHandler();
   });
 
   server.on("/clockconfig", []() {
@@ -349,12 +351,22 @@ void setup()
     return setDisplayValuePageHandler();
   });
 
+  server.on("/utility", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    return server.requestAuthentication();
+  }
+    return utilityPageHandler();
+  });
+
   server.on("/local.css",   localCSSHandler);
 
   server.onNotFound(handleNotFound);
 
   server.begin();
   debugMsg("HTTP server started");
+
+  // Enable OTA updates
+  httpUpdater.setup(&server, "/update", "admin", "update");
 
   setPIRPullup(usePIRPullup);
 
@@ -3742,6 +3754,22 @@ unsigned char hex2bcd (unsigned char x)
     y = (x / 10) << 4;
     y = y | (x % 10);
     return (y);
+}
+
+// ************************************************************
+// Access to utility functions
+// ************************************************************
+void utilityPageHandler()
+{
+  String response_message = getHTMLHead(getIsConnected());
+  response_message += getNavBar();
+
+  response_message += "<hr><li><a href=\"/resetwifi\">Restart WiFi module</a></li>";
+  response_message += "<hr><li><a href=\"/reset\">Clear WiFi config and restart module</a></li>";
+  response_message += "<hr><li><a href=\"/update\">Update firmware</a></li>";
+
+  response_message += getHTMLFoot();
+  server.send(200, "text/html", response_message);
 }
 
 // ************************************************************
