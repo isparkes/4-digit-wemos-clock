@@ -59,7 +59,7 @@
  #define setupDebug()  Serial.begin(115200)
 #else
  #define debugMsg(x)
- #define setupDebug() 
+ #define setupDebug()
 #endif
 
 // ------------------------ Wifi ------------------------
@@ -173,7 +173,7 @@ unsigned long pirTimeout = PIR_TIMEOUT_DEFAULT;
 unsigned long pirLastSeen = 0;
 boolean pirInstalled = false;
 boolean usePIRPullup = true;
-int pirConsecutiveCounts = 0;
+int pirConsecutiveCounts = 300;  // set with a high value to stop the PIR being falsely detected the first time round the loop
 
 boolean triggeredThisSec = false;
 
@@ -226,6 +226,14 @@ ClockButton button1(inputPin1, true);
 
 unsigned long uptimeMins = 0;
 unsigned long tubeOnTimeMins = 0;
+
+// **************************** Auth ****************************
+#define WEB_USERNAME_DEFAULT "admin";
+#define WEB_PASSWORD_DEFAULT "setup";
+#define WEB_AUTH_DEFAULT true;
+boolean webAuthentication = WEB_AUTH_DEFAULT;
+String webUsername = WEB_USERNAME_DEFAULT;
+String webPassword = WEB_PASSWORD_DEFAULT;
 
 //**********************************************************************************
 
@@ -305,11 +313,44 @@ void setup()
 
   /* Set page handler functions */
   server.on("/",            rootPageHandler);
-  server.on("/time",        timeServerPageHandler);
-  server.on("/reset",       resetPageHandler);
-  server.on("/clockconfig", clockConfigPageHandler);
-  server.on("/setvalue",    setDisplayValuePageHandler);
+
+  server.on("/time", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return timeServerPageHandler();
+  });
+
+  server.on("/reset", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return resetPageHandler();
+  });
+
+  server.on("/resetwifi", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return resetWifiPageHandler();
+  });
+
+  server.on("/clockconfig", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return clockConfigPageHandler();
+  });
+
+  server.on("/setvalue", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return setDisplayValuePageHandler();
+  });
+
   server.on("/local.css",   localCSSHandler);
+
   server.onNotFound(handleNotFound);
 
   server.begin();
@@ -391,7 +432,7 @@ void setup()
 
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
-  setTime(12, 34, 56, 1, 10, 2018);
+  setTime(12, 34, 56, 1, 4, 2019);
 
   testRTCTimeProvider();
   if (useRTC) {
@@ -521,21 +562,21 @@ void loop()
   if(digitalRead(pirPin) == HIGH) {
     pirConsecutiveCounts++;
   }
-  
+
   outputDisplay();
 }
 
 // ************************************************************
 // Called once per second
 // ************************************************************
-void performOncePerSecondProcessing() {  
+void performOncePerSecondProcessing() {
   // Store the current value and reset
   lastImpressionsPerSec = impressionsPerSec;
   impressionsPerSec = 0;
 
   // Change the direction of the pulse
   upOrDown = !upOrDown;
-  
+
   // If we are in temp display mode, decrement the count
   if (tempDisplayModeDuration > 0) {
     if (tempDisplayModeDuration > 1000) {
@@ -622,9 +663,9 @@ void performOncePerMinuteProcessing() {
   }
 
   if (useRTC) {
-    debugMsg("RTC OK"); 
+    debugMsg("RTC OK");
   } else {
-    debugMsg("RTC not found"); 
+    debugMsg("RTC not found");
   }
 
   // Usage stats
@@ -716,15 +757,15 @@ void setLeds()
   }
 
   if (blankLEDs) {
-          setAllLEDs( getLEDAdjusted(0, 1, 1), 
-                      getLEDAdjusted(0, 1, 1), 
+          setAllLEDs( getLEDAdjusted(0, 1, 1),
+                      getLEDAdjusted(0, 1, 1),
                       getLEDAdjusted(0, 1, 1));
   } else {
     // RGB Backlight PWM led output
     switch (backlightMode) {
       case BACKLIGHT_FIXED:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, 1), 
-                    getLEDAdjusted(rgb_backlight_curve[grnCnl], 1, 1), 
+        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, 1),
+                    getLEDAdjusted(rgb_backlight_curve[grnCnl], 1, 1),
                     getLEDAdjusted(rgb_backlight_curve[bluCnl], 1, 1));
         break;
       case BACKLIGHT_PULSE:
@@ -739,8 +780,8 @@ void setLeds()
                     getLEDAdjusted(colors[2], 1, 1));
         break;
       case BACKLIGHT_FIXED_DIM:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, dimFactor), 
-                    getLEDAdjusted(rgb_backlight_curve[grnCnl], 1, dimFactor), 
+        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, dimFactor),
+                    getLEDAdjusted(rgb_backlight_curve[grnCnl], 1, dimFactor),
                     getLEDAdjusted(rgb_backlight_curve[bluCnl], 1, dimFactor));
         break;
       case BACKLIGHT_PULSE_DIM:
@@ -782,7 +823,7 @@ void setLeds()
 // the sensor over configured blanking.
 // Returns true if PIR sensor is installed and we are blanked
 //
-// To deal with noise, we use a counter to detect a number of 
+// To deal with noise, we use a counter to detect a number of
 // consecutive counts before counting the PIR as "detected"
 // ************************************************************
 boolean checkPIR(unsigned long nowMillis) {
@@ -790,6 +831,7 @@ boolean checkPIR(unsigned long nowMillis) {
     pirLastSeen = nowMillis;
     return false;
   } else {
+    if (!pirInstalled) debugMsg("Marking PIR as installed");
     pirInstalled = true;
     if (nowMillis > (pirLastSeen + (pirTimeout * 1000))) {
       return true;
@@ -830,7 +872,7 @@ void outputLEDBuffer() {
 }
 
 // ************************************************************
-// Show the preview of the next mode - we stay in this mode until the 
+// Show the preview of the next mode - we stay in this mode until the
 // button is released
 // ************************************************************
 void setNextMode(int displayMode) {
@@ -1082,7 +1124,7 @@ void processCurrentMode(int displayMode) {
         if (tempDisplayModeDuration > 0) {
           blanked = false;
           setTubesAndLEDSBlankMode();
-          
+
           if (tempDisplayMode == TEMP_MODE_SECS) {
             loadNumberArrayMinsSecs();
           }
@@ -1889,7 +1931,7 @@ void outputDisplay()
           fadeState[i] = fadeState[i] - 1;
         }
       }
-    } else 
+    } else
 
     // --------------------- Fade ---------------------
 
@@ -1917,7 +1959,7 @@ void outputDisplay()
         fadeState[i] = fadeState[i] - 1;
         digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
       }
-    } else 
+    } else
 
     // --------------------- Normal ---------------------
 
@@ -2370,7 +2412,7 @@ boolean getHoursBlanked() {
 }
 
 // ************************************************************
-// Set the tubes and LEDs blanking variables based on blanking mode and 
+// Set the tubes and LEDs blanking variables based on blanking mode and
 // blank mode settings
 // ************************************************************
 void setTubesAndLEDSBlankMode() {
@@ -2418,7 +2460,7 @@ void randomRGBFlash(int delayVal) {
     setAllLEDs(0,0,255);
   }
   delay(delayVal);
-  
+
   setAllLEDs(0,0,0);
   delay(delayVal);
 }
@@ -2567,7 +2609,7 @@ int getDimmingFromLDR() {
     if (returnValue > DIGIT_DISPLAY_OFF) returnValue = DIGIT_DISPLAY_OFF;
     return returnValue;
   } else {
-    return DIGIT_DISPLAY_OFF;  
+    return DIGIT_DISPLAY_OFF;
   }
 }
 
@@ -2600,9 +2642,7 @@ boolean getConfigFromSpiffs() {
         if (json.success()) {
           debugMsg("parsed json");
 
-          char tzsTmp[256];
-          strcpy(tzsTmp, json["time_zone"]);
-          timeServerURL = String(tzsTmp);
+          timeServerURL = json["time_zone"].as<String>();
           debugMsg("Loaded time server URL: " + timeServerURL);
 
           hourMode = json["hourMode"].as<bool>();
@@ -2683,6 +2723,15 @@ boolean getConfigFromSpiffs() {
           ledMode = json["ledMode"];
           debugMsg("Loaded ledMode: " + String(ledMode));
 
+          webAuthentication = json["webAuthentication"].as<bool>();
+          debugMsg("Loaded webAuthentication: " + String(webAuthentication));
+
+          webUsername = json["webUsername"].as<String>();
+          debugMsg("Loaded webUsername: " + webUsername);
+
+          webPassword = json["webPassword"].as<String>();
+          debugMsg("Loaded webPassword: " + webPassword);
+
           loaded = true;
         } else {
           debugMsg("failed to load json config");
@@ -2734,6 +2783,9 @@ void saveConfigToSpiffs() {
     json["usePIRPullup"] = usePIRPullup;
     json["testMode"] = testMode;
     json["ledMode"] = ledMode;
+    json["webAuthentication"] = webAuthentication;
+    json["webUsername"] = webUsername;
+    json["webPassword"] = webPassword;
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -2863,6 +2915,9 @@ void factoryReset() {
   usePIRPullup = USE_PIR_PULLUP_DEFAULT;
   ledMode = LED_BLINK_DEFAULT;
   testMode = true;
+  webAuthentication = WEB_AUTH_DEFAULT;
+  webUsername = WEB_USERNAME_DEFAULT;
+  webPassword = WEB_PASSWORD_DEFAULT;
 
   saveConfigToSpiffs();
 }
@@ -2895,7 +2950,7 @@ void rootPageHandler() {
     lastTimeFromServer = getTimeFromTimeZoneServer();
 
     if (lastTimeFromServer.startsWith("ERROR:")) {
-      response_message += getTableRow2Col("Time according to server", lastTimeFromServer);    
+      response_message += getTableRow2Col("Time according to server", lastTimeFromServer);
     } else {
       int years = getIntValue(lastTimeFromServer, ',', 0);
       byte months = getIntValue(lastTimeFromServer, ',', 1);
@@ -2904,7 +2959,7 @@ void rootPageHandler() {
       byte minutes = getIntValue(lastTimeFromServer, ',', 4);
       byte seconds = getIntValue(lastTimeFromServer, ',', 5);
       String formattedTime = String(years)+":"+String(months)+":"+String(days)+" "+String(hours)+":"+String(minutes)+":"+String(seconds);
-      response_message += getTableRow2Col("Time according to server", formattedTime);    
+      response_message += getTableRow2Col("Time according to server", formattedTime);
     }
   }
   else
@@ -3057,8 +3112,11 @@ void resetPageHandler() {
 
   debugMsg("Reset page out");
 
+  // let the message get written
+  delay(500);
+
   // do the restart
-  ESP.restart();  
+  ESP.restart();
 }
 
 // ************************************************************
@@ -3326,7 +3384,7 @@ void clockConfigPageHandler() {
   }
 
   // -----------------------------------------------------------------------------
-  
+
   if (server.hasArg("usePirPullup"))
   {
     debugMsg("Got usePirPullup param: " + server.arg("usePirPullup"));
@@ -3368,8 +3426,49 @@ void clockConfigPageHandler() {
       debugMsg("-> Set ledMode: " + String(newLedMode));
     }
   }
+
   // -----------------------------------------------------------------------------
 
+  if (server.hasArg("authenticate")) {
+    debugMsg("Got Authenticate param: " + server.arg("authenticate"));
+    if ((server.arg("authenticate") == "Off") && (webAuthentication)) {
+      debugMsg("-> Set authentication off");
+      changed = true;
+      webAuthentication = false;
+    }
+
+    if ((server.arg("authenticate") == "On") && (!webAuthentication)) {
+      debugMsg("-> Set authentication on");
+      changed = true;
+      webAuthentication = true;
+    }
+  }
+
+  // -----------------------------------------------------------------------------
+
+  if (server.hasArg("username"))
+  {
+    String newUsername = server.arg("username");
+    if (webUsername != newUsername) {
+      webUsername = newUsername;
+      debugMsg("-> Username = " + webUsername);
+      changed = true;
+    }
+  }
+
+  // -----------------------------------------------------------------------------
+
+  if (server.hasArg("password"))
+  {
+    String newPassword = server.arg("password");
+    if (webPassword != newPassword) {
+      webPassword = newPassword;
+      debugMsg("-> Password = " + webPassword);
+      changed = true;
+    }
+  }
+
+  // -----------------------------------------------------------------------------
   // Save the options
   if (changed) {
     debugMsg("Config options changed, saving them");
@@ -3406,7 +3505,6 @@ void clockConfigPageHandler() {
     response_message += getRadioButton("blankLeading", "Show", "show", true);
   }
   response_message += getRadioGroupFooter();
-  //response_message += getCheckBox("blankLeadingZero", "on", "Blank leading zero on hours", (configBlankLead == 1));
 
   // Scrollback
   response_message += getRadioGroupHeader("Scrollback effect:");
@@ -3420,7 +3518,7 @@ void clockConfigPageHandler() {
   response_message += getRadioGroupFooter();
 
   // Scroll steps
-  response_message += getNumberInput("Scroll steps:", "scrollSteps", SCROLL_STEPS_MIN, SCROLL_STEPS_MAX, scrollSteps, false);
+  response_message += getNumberInput("Scroll steps:", "scrollSteps", SCROLL_STEPS_MIN, SCROLL_STEPS_MAX, scrollSteps, !scrollback);
 
   // fade
   response_message += getRadioGroupHeader("Fade effect:");
@@ -3434,7 +3532,7 @@ void clockConfigPageHandler() {
   response_message += getRadioGroupFooter();
 
   // Fade steps
-  response_message += getNumberInput("Fade steps:", "fadeSteps", FADE_STEPS_MIN, FADE_STEPS_MAX, fadeSteps, false);
+  response_message += getNumberInput("Fade steps:", "fadeSteps", FADE_STEPS_MIN, FADE_STEPS_MAX, fadeSteps, !fade);
 
   // LDR
   response_message += getRadioGroupHeader("Use LDR:");
@@ -3472,7 +3570,7 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("1", "Blank LEDs only", (blankMode == 1));
   response_message += getDropDownOption("2", "Blank tubes and LEDs", (blankMode == 2));
   response_message += getDropDownFooter();
-  
+
   boolean hoursDisabled = (dayBlanking < 4);
 
   // Blank hours from
@@ -3493,13 +3591,17 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("7", "'Colourtime' backlight, dims with ambient light", (backlightMode == 7));
   response_message += getDropDownFooter();
 
+  boolean activeLEDs = (backlightMode == 0) || (backlightMode == 1) || (backlightMode == 3) || (backlightMode == 4);
+
   // RGB channels
-  response_message += getNumberInput("Red intensity:", "redCnl", 0, 15, redCnl, false);
-  response_message += getNumberInput("Green intensity:", "grnCnl", 0, 15, grnCnl, false);
-  response_message += getNumberInput("Blue intensity:", "bluCnl", 0, 15, bluCnl, false);
+  response_message += getNumberInput("Red intensity:", "redCnl", 0, 15, redCnl, !activeLEDs);
+  response_message += getNumberInput("Green intensity:", "grnCnl", 0, 15, grnCnl, !activeLEDs);
+  response_message += getNumberInput("Blue intensity:", "bluCnl", 0, 15, bluCnl, !activeLEDs);
+
+  boolean activeCycle = (backlightMode == 2) || (backlightMode == 5);
 
   // Cycle speed
-  response_message += getNumberInput("Backlight Cycle Speed:", "cycleSpeed", CYCLE_SPEED_MIN, CYCLE_SPEED_MAX, cycleSpeed, false);
+  response_message += getNumberInput("Backlight Cycle Speed:", "cycleSpeed", CYCLE_SPEED_MIN, CYCLE_SPEED_MAX, cycleSpeed, !activeCycle);
 
   // Slots Mode
   response_message += getDropDownHeader("Date Slots:", "slotsMode", true);
@@ -3514,7 +3616,7 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("2", "Fast flash", (ledMode == LED_BLINK_FAST));
   response_message += getDropDownOption("3", "Double flash", (ledMode == LED_BLINK_DBL));
   response_message += getDropDownFooter();
-  
+
   // PIR timeout
   response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);
 
@@ -3531,6 +3633,20 @@ void clockConfigPageHandler() {
 
   // Min dim
   response_message += getNumberInput("Min Dim:", "minDim", MIN_DIM_MIN, MIN_DIM_MAX, minDim, false);
+
+  // web auth mode
+  response_message += getRadioGroupHeader("Authentication:");
+  if (webAuthentication) {
+    response_message += getRadioButton("authenticate", " On", "On", true);
+    response_message += getRadioButton("authenticate", " Off", "Off", false);
+  } else {
+    response_message += getRadioButton("authenticate", " On", "On", false);
+    response_message += getRadioButton("authenticate", " Off", "Off", true);
+  }
+  response_message += getRadioGroupFooter();
+
+  response_message += getTextInput("User Name", "username", webUsername, !webAuthentication);
+  response_message += getTextInput("Password", "password", webPassword, !webAuthentication);
 
   // form footer
   response_message += getSubmitButton("Set");
@@ -3573,7 +3689,7 @@ void setDisplayValuePageHandler() {
     debugMsg("Got time");
     debugMsg(server.arg("time"));
     unsigned int timeToSend = atoi(server.arg("time").c_str());
-    if (timeToSend > 255) 
+    if (timeToSend > 255)
     {
       valueDisplayTime = 0xff;
     } else {
@@ -3629,6 +3745,26 @@ unsigned char hex2bcd (unsigned char x)
 }
 
 // ************************************************************
+// Reset just the wifi
+// ************************************************************
+void resetWiFiPageHandler() {
+  debugMsg("Reset WiFi page in");
+
+  WiFiManager wifiManager;
+  wifiManager.resetSettings();
+
+  String response_message = getHTMLHead(getIsConnected());
+  response_message += getNavBar();
+  response_message += "<div class=\"alert alert-success fade in\"><strong>Attempting a restart.</strong>";
+  response_message += "<script> var timer = setTimeout(function() {window.location='/'}, 10000);</script>";
+  response_message += getHTMLFoot();
+  server.send(200, "text/html", response_message);
+  debugMsg("Reset WiFi page out");
+  delay(1000);    // wait to deliver response
+  ESP.restart();  // should reboot
+}
+
+// ************************************************************
 // Called if requested page is not found
 // ************************************************************
 void handleNotFound() {
@@ -3668,7 +3804,7 @@ void localCSSHandler()
 // ----------------------------------------------------------------------------------------------------
 
 // ************************************************************
-// Get the local time from the time zone server. Return the error description prefixed by 
+// Get the local time from the time zone server. Return the error description prefixed by
 // "ERROR:" if something went wrong. Uses the global variable timeServerURL.
 // ************************************************************
 String getTimeFromTimeZoneServer() {
