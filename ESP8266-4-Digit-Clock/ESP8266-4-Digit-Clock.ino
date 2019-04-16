@@ -118,9 +118,8 @@ byte antiGhost = ANTI_GHOST_DEFAULT;
 int dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
 float fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
 
-// For software blinking
-int blinkCounter = 0;
-boolean blinkState = true;
+// For display blinking
+boolean blinkState;
 
 // leading digit blanking
 boolean blankLeading = false;
@@ -825,6 +824,9 @@ void setLeds()
         break;
     }
   }
+
+  // Blinking for 
+  blinkState = (secsDeltaAbs % 500) > 250; 
 }
 
 // ************************************************************
@@ -1981,7 +1983,7 @@ void outputDisplay()
     }
 
     // Main display loop - everything up to now was preparation
-    for (int timer = DIGIT_DISPLAY_START ; timer < DIGIT_DISPLAY_COUNT ; timer++) {
+    for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
       if (timer < digitOnTime) {
         // Give the poor ESP time to do other things while we are in the porch
         yield();
@@ -1995,13 +1997,6 @@ void outputDisplay()
         digitOn(i, NumberArray[i]);
       }
     }
-  }
-
-  // Deal with blink, calculate if we are on or off
-  blinkCounter++;
-  if (blinkCounter == BLINK_COUNT_MAX) {
-    blinkCounter = 0;
-    blinkState = !blinkState;
   }
 }
 
@@ -2177,8 +2172,8 @@ void allNormal() {
 // Display preset
 // ************************************************************
 void displayConfig() {
-  if (displayType[0] != BRIGHT) displayType[0] = BRIGHT;
-  if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
+  if (displayType[0] != BLINK)  displayType[0] = BLINK;
+  if (displayType[1] != BLINK)  displayType[1] = BLINK;
   if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
   if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
 }
