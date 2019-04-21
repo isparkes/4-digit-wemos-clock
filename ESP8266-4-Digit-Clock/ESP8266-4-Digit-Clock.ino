@@ -44,7 +44,6 @@
 #include "ClockButton.h"
 #include "Transition.h"
 #include "DisplayDefs.h"
-#include "VFDDefs.h"
 #include "ClockUtils.h"
 #include "ClockDefs.h"
 #include "ESP_DS1307.h"
@@ -60,6 +59,7 @@
  #define setupDebug()  Serial.begin(115200)
 #else
  #define debugMsg(x)
+ #define debugMsgCont(x)
  #define setupDebug()
 #endif
 
@@ -1868,8 +1868,7 @@ void outputDisplay()
   // used to blank all leading digits if 0
   boolean leadingZeros = true;
 
-  for ( int i = 0 ; i < DIGIT_COUNT ; i ++ )
-  {
+  for ( int i = 0 ; i < DIGIT_COUNT ; i ++ ) {
     if (blankTubes) {
       tmpDispType = BLANKED;
     } else {
@@ -1978,18 +1977,16 @@ void outputDisplay()
     // --------------------- Normal ---------------------
 
     {
-      digitSwitchTime = DIGIT_DISPLAY_COUNT;
+      digitSwitchTime = DIGIT_DISPLAY_NEVER;
       currNumberArray[i] = NumberArray[i];
     }
 
     // Main display loop - everything up to now was preparation
     for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
-      if (timer < digitOnTime) {
-        // Give the poor ESP time to do other things while we are in the porch
-        yield();
-      } else if (timer == digitOffTime) {
+      if (timer == digitOffTime) {
         digitOff(i, NumberArray[i]);
         ledsOff();
+        doYield();
       } else if (timer == digitOnTime) {
         digitOn(i, currNumberArray[i]);
         ledsOn();
@@ -2004,18 +2001,23 @@ void outputDisplay()
 // Set a digit with the given value, for a given digit
 // ************************************************************
 void digitOn(byte digit, byte value) {
-  byte dispValue = (anodes[digit] & 0xf0);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
-  dispValue = (decodeDigit[value] & 0xf) | (anodes[digit] & 0xf0);
+  byte dispValue = (decodeDigit[value] & 0xf) | (anodes[digit] & 0xf0);
   shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
 }
 
 // ************************************************************
-// Turn the anodes off
+// Turn the anodes off, but lave the cathode alone
 // ************************************************************
 void digitOff(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf);
   shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
+}
+
+// determined by the responsiveness of the UI
+#define YIELD_COUNT_PER_DIGIT 10
+void doYield() {
+  for (int i = 0 ; i < YIELD_COUNT_PER_DIGIT; i++)
+    yield();
 }
 
 // ************************************************************

@@ -10,7 +10,7 @@
 #define DIGIT_DISPLAY_COUNT   3000                    // The number of times to traverse inner fade loop per digit
 #define DISPLAY_COUNT_MAX     DIGIT_DISPLAY_COUNT - 1 // Maximum value we can set to
 #define DIGIT_DISPLAY_START   0                       // Inner loop start point per digit
-#define DIGIT_DISPLAY_ON      99                      // Switch on the digit after the "front porch" by default
+#define DIGIT_DISPLAY_ON      0                       // Switch on the digit after the "front porch" by default
 #define DIGIT_DISPLAY_OFF     3000                    // Switch off the digit at the end by default
 #define DIGIT_DISPLAY_NEVER   -1                      // When we don't want to switch on or off (i.e. blanking)
 
@@ -22,6 +22,26 @@
 #define BLINK    4
 #define SCROLL   5
 #define BRIGHT   6
+
+#define DIAGS_SPIFFS      0
+#define DIAGS_WIFI        1
+#define DIAGS_TIMESERVER  2
+#define DIAGS_RTC         3
+
+#define STATUS_RED    0
+#define STATUS_YELLOW 1
+#define STATUS_GREEN  2
+#define STATUS_BLUE   3
+
+#define LED_MODE_MIN        0
+#define LED_RAILROAD        0
+#define LED_BLINK_SLOW      1
+#define LED_BLINK_FAST      2
+#define LED_BLINK_DBL       3
+#define LED_BLINK_DEFAULT   LED_RAILROAD
+#define LED_MODE_MAX        3
+
+#define DIGIT_COUNT 4
 
 // ************************************************************
 // LED brightness correction: The perceived brightness is not linear
@@ -53,24 +73,18 @@ const byte colourTimeR[] = { 255, 255, 255, 96,   0,   0,   0,   0, 180,  255};
 const byte colourTimeG[] = {   0, 164, 255, 255, 255, 255, 128,   0,   0,   0};
 const byte colourTimeB[] = {   0,   0,   0,   0,  32, 190, 255, 255, 255, 255};
 
-#define DIAGS_SPIFFS      0
-#define DIAGS_WIFI        1
-#define DIAGS_TIMESERVER  2
-#define DIAGS_RTC         3
+// ************************ Display management ************************
 
-#define STATUS_RED    0
-#define STATUS_YELLOW 1
-#define STATUS_GREEN  2
-#define STATUS_BLUE   3
+// allows the board wiring to be much simpler
+// Mapping             2 3 7 6 4 5 1 0 8 9 
+const byte decodeDigit[16] = {B00000010,B00000011,B00000111,B00000110,B00000100,B00000101,B00000001,B00000000,B00001000,B00001001,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111};
 
-#define LED_MODE_MIN        0
-#define LED_RAILROAD        0
-#define LED_BLINK_SLOW      1
-#define LED_BLINK_FAST      2
-#define LED_BLINK_DBL       3
-#define LED_BLINK_DEFAULT   LED_RAILROAD
-#define LED_MODE_MAX        3
+#define ANODE_1    B00010000
+#define ANODE_2    B00100000
+#define ANODE_3    B01000000
+#define ANODE_4    B10000000
+#define ANODE_NONE B00000000
 
-#define DIGIT_COUNT 4
+const byte anodes[4] = {ANODE_1, ANODE_2, ANODE_3, ANODE_4};
 
 #endif
