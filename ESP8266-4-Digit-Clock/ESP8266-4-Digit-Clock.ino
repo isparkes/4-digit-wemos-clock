@@ -298,7 +298,7 @@ void setup()
   debugMsg("AP IP address: " + formatIPAsString(apIP));
   debugMsg("IP address: " + formatIPAsString(myIP));
 
-  lastTimeFromServer = getTimeFromTimeZoneServer();
+  getTimeFromTimeZoneServer();
   if (lastTimeFromServer.startsWith("ERROR:")) {
     debugMsg(lastTimeFromServer);
     setDiagnosticLED(DIAGS_TIMESERVER,STATUS_RED);
@@ -643,24 +643,14 @@ void performOncePerSecondProcessing() {
 }
 
 // ************************************************************
-// Called once per minute
+// Called once per minute, try to get net time as long as we
+// Still think there is a Wifi network to use
 // ************************************************************
 void performOncePerMinuteProcessing() {
-  // Try to recover the current time
-  lastTimeFromServer = getTimeFromTimeZoneServer();
-
-  if (!lastTimeFromServer.startsWith("ERROR:")) {
-    setTimeFromServer(lastTimeFromServer);
-
-    // all OK
-    debugMsg("Update from time server OK");
-
-    lastUpdateFromServer = nowMillis;
-  } else {
-    debugMsg("Connected, time server error");
-  }
-
   if (useWiFi > 0) {
+    // Try to recover the current time
+    getTimeFromTimeZoneServer();
+
     if (useWiFi == MAX_WIFI_TIME) {
       // We recently got an update, send to the RTC (if installed)
       setRTCTime();
@@ -670,6 +660,7 @@ void performOncePerMinuteProcessing() {
     }
     useWiFi--;
   } else {
+    debugMsg("Did not attempt to get net time");
     getRTCTime(true);
   }
 
@@ -691,7 +682,22 @@ void performOncePerMinuteProcessing() {
 // Called once per hour
 // ************************************************************
 void performOncePerHourProcessing() {
+  // try to reconnect if we lost the connection
   reconnectDroppedConnection();
+
+  // Try to recover the current time
+  getTimeFromTimeZoneServer();
+
+  if (!lastTimeFromServer.startsWith("ERROR:")) {
+    setTimeFromServer(lastTimeFromServer);
+
+    // all OK
+    debugMsg("Update from time server OK");
+
+    lastUpdateFromServer = nowMillis;
+  } else {
+    debugMsg("Connected, time server error");
+  }
 }
 
 // ************************************************************
@@ -2013,7 +2019,10 @@ void digitOff(byte digit, byte value) {
   shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
 }
 
-// determined by the responsiveness of the UI
+// ************************************************************
+// Do some yields after every digit. The number determines 
+// the responsiveness of the UI and the blink in the display.
+// ************************************************************
 #define YIELD_COUNT_PER_DIGIT 10
 void doYield() {
   for (int i = 0 ; i < YIELD_COUNT_PER_DIGIT; i++)
@@ -2956,7 +2965,7 @@ void rootPageHandler() {
     response_message += getTableRow2Col("WLAN MAC", WiFi.macAddress());
     response_message += getTableRow2Col("WLAN SSID", WiFi.SSID());
     response_message += getTableRow2Col("Time server URL", timeServerURL);
-    lastTimeFromServer = getTimeFromTimeZoneServer();
+    getTimeFromTimeZoneServer();
 
     if (lastTimeFromServer.startsWith("ERROR:")) {
       response_message += getTableRow2Col("Time according to server", lastTimeFromServer);
@@ -3758,6 +3767,7 @@ unsigned char hex2bcd (unsigned char x)
 // ************************************************************
 void utilityPageHandler()
 {
+  debugMsg("Utility page in");
   String response_message = getHTMLHead(getIsConnected());
   response_message += getNavBar();
 
@@ -3767,6 +3777,7 @@ void utilityPageHandler()
 
   response_message += getHTMLFoot();
   server.send(200, "text/html", response_message);
+  debugMsg("Utility page out");
 }
 
 // ************************************************************
@@ -3820,7 +3831,6 @@ void handleNotFound() {
 void localCSSHandler()
 {
   PGM_P cssStr = PSTR(".navbar,.table{margin-bottom:20px}.nav>li,.nav>li>a,article,aside,details,figcaption,figure,footer,header,hgroup,main,menu,nav,section,summary{display:block}.btn,.form-control,.navbar-toggle{background-image:none}.table,label{max-width:100%}.sub-header{padding-bottom:10px;border-bottom:1px solid #eee}.h3,h3{font-size:24px}.table{width:100%}table{background-color:transparent;border-spacing:0;border-collapse:collapse}.table-striped>tbody>tr:nth-of-type(2n+1){background-color:#f9f9f9}.table>caption+thead>tr:first-child>td,.table>caption+thead>tr:first-child>th,.table>colgroup+thead>tr:first-child>td,.table>colgroup+thead>tr:first-child>th,.table>thead:first-child>tr:first-child>td,.table>thead:first-child>tr:first-child>th{border-top:0}.table>thead>tr>th{border-bottom:2px solid #ddd}.table>tbody>tr>td,.table>tbody>tr>th,.table>tfoot>tr>td,.table>tfoot>tr>th,.table>thead>tr>td,.table>thead>tr>th{padding:8px;line-height:1.42857143;vertical-align:top;border-top:1px solid #ddd}th{text-align:left}td,th{padding:0}.navbar>.container .navbar-brand,.navbar>.container-fluid .navbar-brand{margin-left:-15px}.container,.container-fluid{padding-right:15px;padding-left:15px;margin-right:auto;margin-left:auto}.navbar-inverse .navbar-brand{color:#9d9d9d}.navbar-brand{float:left;height:50px;padding:15px;font-size:18px;line-height:20px}a{color:#337ab7;text-decoration:none;background-color:transparent}.navbar-fixed-top{border:0;top:0;border-width:0 0 1px}.navbar-inverse{background-color:#222;border-color:#080808}.navbar-fixed-bottom,.navbar-fixed-top{border-radius:0;position:fixed;right:0;left:0;z-index:1030}.nav>li,.nav>li>a,.navbar,.navbar-toggle{position:relative}.navbar{border-radius:4px;min-height:50px;border:1px solid transparent}.container{width:750px}.navbar-right{float:right!important;margin-right:-15px}.navbar-nav{float:left;margin:7.5px -15px}.nav{padding-left:0;margin-bottom:0;list-style:none}.navbar-nav>li{float:left}.navbar-inverse .navbar-nav>li>a{color:#9d9d9d}.navbar-nav>li>a{padding-top:10px;padding-bottom:10px;line-height:20px}.nav>li>a{padding:10px 15px}.navbar-inverse .navbar-toggle{border-color:#333}.navbar-toggle{display:none;float:right;padding:9px 10px;margin-top:8px;margin-right:15px;margin-bottom:8px;background-color:transparent;border:1px solid transparent;border-radius:4px}button,select{text-transform:none}button{overflow:visible}button,html input[type=button],input[type=reset],input[type=submit]{-webkit-appearance:button;cursor:pointer}.btn-primary{color:#fff;background-color:#337ab7;border-color:#2e6da4}.btn{display:inline-block;padding:6px 12px;margin-bottom:0;font-size:14px;font-weight:400;line-height:1.42857143;text-align:center;white-space:nowrap;vertical-align:middle;-ms-touch-action:manipulation;touch-action:manipulation;cursor:pointer;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;border:1px solid transparent;border-radius:4px}button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit}input{line-height:normal}button,input,optgroup,select,textarea{margin:0;font:inherit;color:inherit}.form-control,body{font-size:14px;line-height:1.42857143}.form-horizontal .form-group{margin-right:-15px;margin-left:-15px}.form-group{margin-bottom:15px}.form-horizontal .control-label{padding-top:7px;margin-bottom:0;text-align:right}.form-control{display:block;width:100%;height:34px;padding:6px 12px;color:#555;background-color:#fff;border:1px solid #ccc;border-radius:4px;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075);box-shadow:inset 0 1px 1px rgba(0,0,0,.075);-webkit-transition:border-color ease-in-out .15s,-webkit-box-shadow ease-in-out .15s;-o-transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s;transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s}.col-xs-8{width:66.66666667%}.col-xs-3{width:25%}.col-xs-1,.col-xs-10,.col-xs-11,.col-xs-12,.col-xs-2,.col-xs-3,.col-xs-4,.col-xs-5,.col-xs-6,.col-xs-7,.col-xs-8,.col-xs-9{float:left}.col-lg-1,.col-lg-10,.col-lg-11,.col-lg-12,.col-lg-2,.col-lg-3,.col-lg-4,.col-lg-5,.col-lg-6,.col-lg-7,.col-lg-8,.col-lg-9,.col-md-1,.col-md-10,.col-md-11,.col-md-12,.col-md-2,.col-md-3,.col-md-4,.col-md-5,.col-md-6,.col-md-7,.col-md-8,.col-md-9,.col-sm-1,.col-sm-10,.col-sm-11,.col-sm-12,.col-sm-2,.col-sm-3,.col-sm-4,.col-sm-5,.col-sm-6,.col-sm-7,.col-sm-8,.col-sm-9,.col-xs-1,.col-xs-10,.col-xs-11,.col-xs-12,.col-xs-2,.col-xs-3,.col-xs-4,.col-xs-5,.col-xs-6,.col-xs-7,.col-xs-8,.col-xs-9{position:relative;min-height:1px;padding-right:15px;padding-left:15px}label{display:inline-block;margin-bottom:5px;font-weight:700}*{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}body{font-family:\"Helvetica Neue\",Helvetica,Arial,sans-serif;color:#333}html{font-size:10px;font-family:sans-serif;-webkit-text-size-adjust:100%}");
-
   server.send(200, "text/css", String(cssStr));
 }
 
@@ -3829,10 +3839,11 @@ void localCSSHandler()
 // ----------------------------------------------------------------------------------------------------
 
 // ************************************************************
-// Get the local time from the time zone server. Return the error description prefixed by
-// "ERROR:" if something went wrong. Uses the global variable timeServerURL.
+// Get the local time from the time zone server. Sets the internal
+// variables "lastTimeFromServer", "useWiFi" and 
+// "lastUpdateFromServer".
 // ************************************************************
-String getTimeFromTimeZoneServer() {
+void getTimeFromTimeZoneServer() {
   debugMsg("Get Time in");
 
   HTTPClient http;
@@ -3847,7 +3858,10 @@ String getTimeFromTimeZoneServer() {
   // file found at server
   if (httpCode == HTTP_CODE_OK) {
     payload = http.getString();
+
     useWiFi = MAX_WIFI_TIME;
+
+    lastUpdateFromServer = nowMillis;
   } else {
     debugMsg("[HTTP] GET... failed, error: " + http.errorToString(httpCode));
     if (httpCode > 0) {
@@ -3862,8 +3876,6 @@ String getTimeFromTimeZoneServer() {
   http.end();
 
   debugMsg("Get Time out");
-
-  return payload;
 }
 
 // ************************************************************
