@@ -26,6 +26,31 @@ String getValue(String data, char separator, int index) {
   return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
 
+
+String secsToReadableString (long secsValue) {
+  long upDays = secsValue / 86400;
+  long upHours = (secsValue - (upDays * 86400)) / 3600;
+  long upMins = (secsValue - (upDays * 86400) - (upHours * 3600)) / 60;
+  secsValue = secsValue - (upDays * 86400) - (upHours * 3600) - (upMins * 60);
+  String uptimeString = "";
+  if (upDays > 0) {
+    uptimeString += upDays; 
+    uptimeString += " d ";
+  }
+  if (upHours > 0) {
+    uptimeString += upHours;
+    uptimeString += " h "; 
+  }
+  if (upMins > 0) {
+    uptimeString += upMins; 
+    uptimeString += " m ";
+  }
+  uptimeString += secsValue; 
+  uptimeString += " s";
+
+  return uptimeString;
+}
+
 // ----------------------------------------------------------------------------------------------------
 // ------------------------------------------- HTML functions -----------------------------------------
 // ----------------------------------------------------------------------------------------------------

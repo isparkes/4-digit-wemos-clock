@@ -43,5 +43,6 @@ String getNumberInputWide(String heading, String input_name, byte minVal, byte m
 String getTextInput(String heading, String input_name, String value, boolean disabled);
 String getTextInputWide(String heading, String input_name, String value, boolean disabled);
 String getSubmitButton(String buttonText);
+String secsToReadableString(long secsValue);
 
 #endif

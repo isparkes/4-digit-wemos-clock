@@ -17,7 +17,8 @@
 //*    Flash: 80MHz,                                                               *
 //*    CPU: 160MHz,                                                                *
 //*    Upload speed: 921600,                                                       *
-//*    Flash size: 4M (1M SPIFFS),                                                 *
+//*    Flash size: 4M (1M SPIFFS)                                                  *
+//*    lwIP Variant: v2 Higher Bandwidth (no features)                             *
 //*    Erase Flash: Only sketch       ,                                            *
 //*                                                                                *
 //*  nixie@protonmail.ch                                                           *
@@ -51,7 +52,7 @@
 // Software version shown in config menu
 #define SOFTWARE_VERSION    1
 
-#define DEBUG_OFF
+#define DEBUG
 
 #ifdef DEBUG
  #define debugMsg(x)  Serial.println (x)
@@ -298,7 +299,7 @@ void setup()
   debugMsg("AP IP address: " + formatIPAsString(apIP));
   debugMsg("IP address: " + formatIPAsString(myIP));
 
-  getTimeFromTimeZoneServer();
+  getTimeFromTimeZoneServer(true);
   if (lastTimeFromServer.startsWith("ERROR:")) {
     debugMsg(lastTimeFromServer);
     setDiagnosticLED(DIAGS_TIMESERVER,STATUS_RED);
@@ -647,17 +648,10 @@ void performOncePerSecondProcessing() {
 // Still think there is a Wifi network to use
 // ************************************************************
 void performOncePerMinuteProcessing() {
+  debugMsg("---> OncePerMinuteProcessing");
   if (useWiFi > 0) {
     // Try to recover the current time
-    getTimeFromTimeZoneServer();
-
-    if (useWiFi == MAX_WIFI_TIME) {
-      // We recently got an update, send to the RTC (if installed)
-      setRTCTime();
-      debugMsg("-> Set RTC time to Net time");
-    } else {
-      debugMsg("Net time is not right up to date: " + String(MAX_WIFI_TIME - useWiFi));
-    }
+    getTimeFromTimeZoneServer(true);
     useWiFi--;
   } else {
     debugMsg("Did not attempt to get net time");
@@ -682,28 +676,19 @@ void performOncePerMinuteProcessing() {
 // Called once per hour
 // ************************************************************
 void performOncePerHourProcessing() {
+  debugMsg("---> OncePerHourProcessing");
   // try to reconnect if we lost the connection
   reconnectDroppedConnection();
 
   // Try to recover the current time
-  getTimeFromTimeZoneServer();
-
-  if (!lastTimeFromServer.startsWith("ERROR:")) {
-    setTimeFromServer(lastTimeFromServer);
-
-    // all OK
-    debugMsg("Update from time server OK");
-
-    lastUpdateFromServer = nowMillis;
-  } else {
-    debugMsg("Connected, time server error");
-  }
+  getTimeFromTimeZoneServer(true);
 }
 
 // ************************************************************
 // Called once per day
 // ************************************************************
 void performOncePerDayProcessing() {
+  debugMsg("---> OncePerDayProcessing");
   saveStatsToSpiffs();
 }
 
@@ -2583,7 +2568,7 @@ void setRTCTime() {
     Clock.fillByHMS(hour(),minute(),second());
     Clock.setTime();
 
-    debugMsg("Set RTC time to Net time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
+    debugMsg("Set RTC time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
   }
 }
 
@@ -2958,14 +2943,14 @@ void rootPageHandler() {
   // Status table
   response_message += getTableHead2Col("Current Status", "Name", "Value");
 
-  if (WiFi.status() == WL_CONNECTED)
-  {
+  if (WiFi.status() == WL_CONNECTED) {
     IPAddress ip = WiFi.localIP();
     response_message += getTableRow2Col("WLAN IP", formatIPAsString(ip));
     response_message += getTableRow2Col("WLAN MAC", WiFi.macAddress());
     response_message += getTableRow2Col("WLAN SSID", WiFi.SSID());
     response_message += getTableRow2Col("Time server URL", timeServerURL);
-    getTimeFromTimeZoneServer();
+    
+    getTimeFromTimeZoneServer(false);
 
     if (lastTimeFromServer.startsWith("ERROR:")) {
       response_message += getTableRow2Col("Time according to server", lastTimeFromServer);
@@ -2988,18 +2973,10 @@ void rootPageHandler() {
     response_message += getTableRow2Col("AP MAC", WiFi.softAPmacAddress());
   }
 
-  // Make the uptime readable
-  long upSecs = millis() / 1000;
-  long upDays = upSecs / 86400;
-  long upHours = (upSecs - (upDays * 86400)) / 3600;
-  long upMins = (upSecs - (upDays * 86400) - (upHours * 3600)) / 60;
-  upSecs = upSecs - (upDays * 86400) - (upHours * 3600) - (upMins * 60);
-  String uptimeString = ""; uptimeString += upDays; uptimeString += " days, "; uptimeString += upHours, uptimeString += " hours, "; uptimeString += upMins; uptimeString += " mins, "; uptimeString += upSecs; uptimeString += " secs";
+  response_message += getTableRow2Col("Uptime", secsToReadableString(millis() / 1000));
 
-  response_message += getTableRow2Col("Uptime", uptimeString);
-
-  float lastUpdateTimeSecs = (nowMillis - lastUpdateFromServer) / 1000.0;
-  response_message += getTableRow2Col("Last time update", String(lastUpdateTimeSecs, 3) + " S ago");
+  long lastUpdateTimeSecs = (nowMillis - lastUpdateFromServer) / 1000;
+  response_message += getTableRow2Col("Last time update", secsToReadableString(lastUpdateTimeSecs) + " ago");
 
   response_message += getTableRow2Col("Version", SOFTWARE_VERSION);
 
@@ -3843,11 +3820,10 @@ void localCSSHandler()
 // variables "lastTimeFromServer", "useWiFi" and 
 // "lastUpdateFromServer".
 // ************************************************************
-void getTimeFromTimeZoneServer() {
+void getTimeFromTimeZoneServer(boolean updateLU) {
   debugMsg("Get Time in");
 
   HTTPClient http;
-  String payload;
 
   http.begin(timeServerURL);
   String espId = "";espId += ESP.getChipId();
@@ -3857,19 +3833,22 @@ void getTimeFromTimeZoneServer() {
 
   // file found at server
   if (httpCode == HTTP_CODE_OK) {
-    payload = http.getString();
+    lastTimeFromServer = http.getString();
 
     useWiFi = MAX_WIFI_TIME;
 
-    lastUpdateFromServer = nowMillis;
+    if (updateLU)
+     lastUpdateFromServer = nowMillis;
+     
+     setRTCTime();
   } else {
     debugMsg("[HTTP] GET... failed, error: " + http.errorToString(httpCode));
     if (httpCode > 0) {
       // RFC error codes don't have a string mapping
-      payload = "ERROR: " + String(httpCode);
+      lastTimeFromServer = "ERROR: " + String(httpCode);
     } else {
       // ESP error codes have a string mapping
-      payload = "ERROR: " + String(httpCode) + " ("+ http.errorToString(httpCode) + ")";
+      lastTimeFromServer = "ERROR: " + String(httpCode) + " ("+ http.errorToString(httpCode) + ")";
     }
   }
 
