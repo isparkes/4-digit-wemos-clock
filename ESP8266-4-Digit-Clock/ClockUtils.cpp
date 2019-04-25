@@ -51,6 +51,18 @@ String secsToReadableString (long secsValue) {
   return uptimeString;
 }
 
+void grabInts(String s, int *dest, String sep) {
+  int end = 0;
+  for (int start = 0; end != -1; start = end + 1) {
+    end = s.indexOf(sep, start);
+    if (end > 0) {
+      *dest++ = s.substring(start, end).toInt();
+    } else {
+      *dest++ = s.substring(start).toInt();
+    }
+  }
+}
+
 // ----------------------------------------------------------------------------------------------------
 // ------------------------------------------- HTML functions -----------------------------------------
 // ----------------------------------------------------------------------------------------------------

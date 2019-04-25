@@ -17,6 +17,7 @@
  String formatIPAsString(IPAddress ip);
  int getIntValue(String data, char separator, int index);
  String getValue(String data, char separator, int index);
+ void grabInts(String s, int *dest, String sep);
 
 // ----------------------------------------------------------------------------------------------------
 // ------------------------------------------- HTML functions -----------------------------------------

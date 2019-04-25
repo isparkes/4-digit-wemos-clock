@@ -30,16 +30,16 @@
 // Standard Libraries
 #include <FS.h>
 #include <Wire.h>
-#include <ESP8266HTTPClient.h>
 #include <ESP8266HTTPUpdateServer.h>
+#include <DNSServer.h>          //https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer
 
 // Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
 // using the ZIP files in the "libraries" directory
 #include <TimeLib.h>            // http://playground.arduino.cc/code/time (Margolis 1.5.0)
-// #include <Timezone.h>           // https://github.com/JChristensen/Timezone (Christensen 1.2.1) for NTP time management
 #include <NeoPixelBus.h>        // https://github.com/Makuna/NeoPixelBus (Makuna 2.3.4)
 #include <WiFiManager.h>        // https://github.com/tzapu/WiFiManager  (tzapu 0.14.0)
 #include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson (bblanchon 5.13.2)
+#include <ESPAsyncUDP.h>        // https://github.com/me-no-dev/ESPAsyncUDP (master HEAD)
 
 // Other parts of the code, broken out for clarity
 #include "ClockButton.h"
@@ -52,29 +52,41 @@
 // Software version shown in config menu
 #define SOFTWARE_VERSION    1
 
-#define DEBUG
+#define DEBUG_OFF
 
 #ifdef DEBUG
- #define debugMsg(x)  Serial.println (x)
- #define debugMsgCont(x)  Serial.print (x)
- #define setupDebug()  Serial.begin(115200)
+#define debugMsg(x)  Serial.println (x)
+#define debugMsgCont(x)  Serial.print (x)
+#define setupDebug()  Serial.begin(115200)
 #else
- #define debugMsg(x)
- #define debugMsgCont(x)
- #define setupDebug()
+#define debugMsg(x)
+#define debugMsgCont(x)
+#define setupDebug()
 #endif
 
 // ------------------------ Wifi ------------------------
 
-#define DEFAULT_TIME_SERVER_URL_1 "http://its.internet-box.ch/getTime/Europe/Zurich"
-#define DEFAULT_TIME_SERVER_URL_2 "http://time-zone-server.scapp.io/getTime/Europe/Zurich"
+// NTP
+#define NTP_POOL_DEFAULT "pool.ntp.org"
+#define NTP_PACKET_SIZE 48
+#define TIME_ZONE_STRING_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3"
+#define NTP_UPDATE_INTERVAL_DEFAULT 7261
+#define NTP_UPDATE_INTERVAL_MIN 60
+#define NTP_UPDATE_INTERVAL_MAX 86400
 
-unsigned long lastMillis = 0;
+String ntpPool = NTP_POOL_DEFAULT;
+String tzs = TIME_ZONE_STRING_DEFAULT;
+unsigned long lastUpdateFromServer = 0;
+signed long nextUpdateFromServer = 0;
+String lastTimeFromServer = "";
+unsigned int ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
+unsigned long ntpStarted = 0;
 
-String timeServerURL = DEFAULT_TIME_SERVER_URL_1;
+// ------------------- General Management ------------------------
 
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdater;
+AsyncUDP udp;
 
 //**********************************************************************************
 //**********************************************************************************
@@ -105,8 +117,8 @@ byte currNumberArray[DIGIT_COUNT] = {0, 0, 0, 0};
 byte displayType[DIGIT_COUNT]     = {FADE, FADE, FADE, FADE};
 byte fadeState[DIGIT_COUNT]       = {0, 0, 0, 0};
 byte valueDisplayTime             = 0;
-byte valueToShow[DIGIT_COUNT/2]   = {0, 0};
-byte valueDisplayType[DIGIT_COUNT/2] = {NORMAL| NORMAL >> 4, NORMAL| NORMAL >> 4}; // All normal by default
+byte valueToShow[DIGIT_COUNT / 2]   = {0, 0};
+byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL >> 4, NORMAL | NORMAL >> 4}; // All normal by default
 
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
 // 300 is about 1 second
@@ -180,7 +192,6 @@ int pirConsecutiveCounts = 300;  // set with a high value to stop the PIR being 
 boolean triggeredThisSec = false;
 
 byte useRTC = false;  // true if we detect an RTC
-byte useWiFi = 0; // the number of minutes ago we recevied information from the WiFi module, 0 = don't use WiFi
 boolean onceHadAnRTC = false;
 
 // **************************** LED management ***************************
@@ -217,9 +228,6 @@ byte currentColour = 0;
 
 int impressionsPerSec = 0;
 int lastImpressionsPerSec = 0;
-
-long lastUpdateFromServer = 0;
-String lastTimeFromServer = "";
 
 // ********************** Input switch management **********************
 ClockButton button1(inputPin1, true);
@@ -263,35 +271,35 @@ void setup()
   pinMode(inputPin1, INPUT_PULLUP);
 
   // turn off all digits
-  digitOff(0,0);
+  digitOff(0, 0);
 
-  if(!getConfigFromSpiffs()) {
+  if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
     factoryReset();
-    setDiagnosticLED(DIAGS_SPIFFS,STATUS_BLUE);
+    setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
   } else {
-    setDiagnosticLED(DIAGS_SPIFFS,STATUS_GREEN);
+    setDiagnosticLED(DIAGS_SPIFFS, STATUS_GREEN);
   }
 
   WiFiManager wifiManager;
 
-  #ifdef DEBUG
+#ifdef DEBUG
   wifiManager.setDebugOutput(true);
-  #endif
+#endif
   wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
   wifiManager.setAPCallback(configModeCallback);
 
-  setDiagnosticLED(DIAGS_WIFI,STATUS_YELLOW);
+  setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
 
   boolean connected = false;
-  connected = wifiManager.autoConnect("ESPClock","SetMeUp!");
+  connected = wifiManager.autoConnect("ESPClock", "SetMeUp!");
 
   if (connected) {
     debugMsg("Connected!");
-    setDiagnosticLED(DIAGS_WIFI,STATUS_GREEN);
+    setDiagnosticLED(DIAGS_WIFI, STATUS_GREEN);
   } else {
     debugMsg("Could NOT Connect");
-    setDiagnosticLED(DIAGS_WIFI,STATUS_RED);
+    setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
   }
 
   IPAddress apIP = WiFi.softAPIP();
@@ -299,16 +307,20 @@ void setup()
   debugMsg("AP IP address: " + formatIPAsString(apIP));
   debugMsg("IP address: " + formatIPAsString(myIP));
 
-  getTimeFromTimeZoneServer(true);
-  if (lastTimeFromServer.startsWith("ERROR:")) {
-    debugMsg(lastTimeFromServer);
-    setDiagnosticLED(DIAGS_TIMESERVER,STATUS_RED);
-  } else {
-    setDiagnosticLED(DIAGS_TIMESERVER,STATUS_GREEN);
-  }
+  setenv("TZ", tzs.c_str(), 0);
 
   // If we lose the connection, we try to recover it
   WiFi.setAutoReconnect(true);
+
+  // See if we can already get the time
+  getTimeFromTimeZoneServer();
+  setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
+  delay(1000);
+  if (nextUpdateFromServer > 0) {
+    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
+  } else {
+    setDiagnosticLED(DIAGS_NTP, STATUS_RED);
+  }
 
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
@@ -337,6 +349,13 @@ void setup()
     return resetWiFiPageHandler();
   });
 
+  server.on("/ntpupdate", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return ntpUpdatePageHandler();
+  });
+
   server.on("/clockconfig", []() {
     if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
       return server.requestAuthentication();
@@ -353,8 +372,8 @@ void setup()
 
   server.on("/utility", []() {
     if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-    return server.requestAuthentication();
-  }
+      return server.requestAuthentication();
+    }
     return utilityPageHandler();
   });
 
@@ -449,9 +468,9 @@ void setup()
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
-    setDiagnosticLED(DIAGS_RTC,STATUS_GREEN);
+    setDiagnosticLED(DIAGS_RTC, STATUS_GREEN);
   } else {
-    setDiagnosticLED(DIAGS_RTC,STATUS_RED);
+    setDiagnosticLED(DIAGS_RTC, STATUS_RED);
   }
 
   // Note that we had an RTC to allow the indicator DP to have meaning
@@ -479,7 +498,6 @@ void setup()
 //*                              Main loop                                         *
 //**********************************************************************************
 //**********************************************************************************
-boolean millisNotSet = true;
 void loop()
 {
   server.handleClient();
@@ -571,7 +589,7 @@ void loop()
   // Prepare the tick and backlight LEDs
   setLeds();
 
-  if(digitalRead(pirPin) == HIGH) {
+  if (digitalRead(pirPin) == HIGH) {
     pirConsecutiveCounts++;
   }
 
@@ -644,24 +662,19 @@ void performOncePerSecondProcessing() {
 }
 
 // ************************************************************
-// Called once per minute, try to get net time as long as we
-// Still think there is a Wifi network to use
+// Called once per minute
 // ************************************************************
 void performOncePerMinuteProcessing() {
   debugMsg("---> OncePerMinuteProcessing");
-  if (useWiFi > 0) {
-    // Try to recover the current time
-    getTimeFromTimeZoneServer(true);
-    useWiFi--;
-  } else {
-    debugMsg("Did not attempt to get net time");
-    getRTCTime(true);
-  }
+  nextUpdateFromServer -= 60;
 
-  if (useRTC) {
-    debugMsg("RTC OK");
-  } else {
-    debugMsg("RTC not found");
+  debugMsg("nu: " + String(nextUpdateFromServer));
+
+  if (nextUpdateFromServer < 0)
+    getTimeFromTimeZoneServer();
+
+  if (!ntpTimeValid()) {
+    getRTCTime(true);
   }
 
   // Usage stats
@@ -677,11 +690,7 @@ void performOncePerMinuteProcessing() {
 // ************************************************************
 void performOncePerHourProcessing() {
   debugMsg("---> OncePerHourProcessing");
-  // try to reconnect if we lost the connection
   reconnectDroppedConnection();
-
-  // Try to recover the current time
-  getTimeFromTimeZoneServer(true);
 }
 
 // ************************************************************
@@ -713,55 +722,55 @@ void setLeds()
 
   switch (ledMode) {
     case LED_RAILROAD:
-    {
-      if (upOrDown) {
-        led1State = true;
-        led2State = false;
-      } else {
-        led1State = false;
-        led2State = true;
+      {
+        if (upOrDown) {
+          led1State = true;
+          led2State = false;
+        } else {
+          led1State = false;
+          led2State = true;
+        }
+        break;
       }
-      break;
-    }
     case LED_BLINK_SLOW:
-    {
-      if (upOrDown) {
-        led1State = true;
-        led2State = true;
-      } else {
-        led1State = false;
-        led2State = false;
+      {
+        if (upOrDown) {
+          led1State = true;
+          led2State = true;
+        } else {
+          led1State = false;
+          led2State = false;
+        }
+        break;
       }
-      break;
-    }
     case LED_BLINK_FAST:
-    {
-      if (secsDeltaAbs < 500) {
-        led1State = true;
-        led2State = true;
-      } else {
-        led1State = false;
-        led2State = false;
+      {
+        if (secsDeltaAbs < 500) {
+          led1State = true;
+          led2State = true;
+        } else {
+          led1State = false;
+          led2State = false;
+        }
+        break;
       }
-      break;
-    }
     case LED_BLINK_DBL:
-    {
-      if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
-        led1State = true;
-        led2State = true;
-      } else {
-        led1State = false;
-        led2State = false;
+      {
+        if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
+          led1State = true;
+          led2State = true;
+        } else {
+          led1State = false;
+          led2State = false;
+        }
+        break;
       }
-      break;
-    }
   }
 
   if (blankLEDs) {
-          setAllLEDs( getLEDAdjusted(0, 1, 1),
-                      getLEDAdjusted(0, 1, 1),
-                      getLEDAdjusted(0, 1, 1));
+    setAllLEDs( getLEDAdjusted(0, 1, 1),
+                getLEDAdjusted(0, 1, 1),
+                getLEDAdjusted(0, 1, 1));
   } else {
     // RGB Backlight PWM led output
     switch (backlightMode) {
@@ -798,26 +807,26 @@ void setLeds()
                     getLEDAdjusted(colors[2], 1, dimFactor));
         break;
       case BACKLIGHT_COLOUR_TIME:
-          for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-            ledR[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,1);
-            ledG[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,1);
-            ledB[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,1);
-          }
-          outputLEDBuffer();
+        for (int i = 0 ; i < DIGIT_COUNT ; i++) {
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, 1);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, 1);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, 1);
+        }
+        outputLEDBuffer();
         break;
       case BACKLIGHT_COLOUR_TIME_DIM:
-          for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-            ledR[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeR[NumberArray[i]],1,dimFactor);
-            ledG[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeG[NumberArray[i]],1,dimFactor);
-            ledB[DIGIT_COUNT-1-i] = getLEDAdjusted(colourTimeB[NumberArray[i]],1,dimFactor);
-          }
-          outputLEDBuffer();
+        for (int i = 0 ; i < DIGIT_COUNT ; i++) {
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, dimFactor);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, dimFactor);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, dimFactor);
+        }
+        outputLEDBuffer();
         break;
     }
   }
 
-  // Blinking for 
-  blinkState = (secsDeltaAbs % 500) > 250; 
+  // Blinking for
+  blinkState = (secsDeltaAbs % 500) > 250;
 }
 
 // ************************************************************
@@ -832,7 +841,7 @@ void setLeds()
 // consecutive counts before counting the PIR as "detected"
 // ************************************************************
 boolean checkPIR(unsigned long nowMillis) {
-  if (pirConsecutiveCounts > (lastImpressionsPerSec/2)) {
+  if (pirConsecutiveCounts > (lastImpressionsPerSec / 2)) {
     pirLastSeen = nowMillis;
     return false;
   } else {
@@ -892,7 +901,7 @@ void setNextMode(int displayMode) {
         break;
       }
     case MODE_HOURS_SET: {
-        if (useWiFi > 0) {
+        if (ntpTimeValid()) {
           // skip past the time and date settings
           nextMode += 6;
           currentMode += 6;
@@ -1147,7 +1156,7 @@ void processCurrentMode(int displayMode) {
           }
 
           if (tempDisplayMode == TEMP_IP_ADDR1) {
-            if (useWiFi > 0) {
+            if (getIsConnected()) {
               IPAddress myIP = WiFi.localIP();
               loadNumberArrayIP(myIP[0]);
               showDisplayIP();
@@ -1158,7 +1167,7 @@ void processCurrentMode(int displayMode) {
           }
 
           if (tempDisplayMode == TEMP_IP_ADDR2) {
-            if (useWiFi > 0) {
+            if (getIsConnected()) {
               IPAddress myIP = WiFi.localIP();
               loadNumberArrayIP(myIP[1]);
               showDisplayIP();
@@ -1169,7 +1178,7 @@ void processCurrentMode(int displayMode) {
           }
 
           if (tempDisplayMode == TEMP_IP_ADDR3) {
-            if (useWiFi > 0) {
+            if (getIsConnected()) {
               IPAddress myIP = WiFi.localIP();
               loadNumberArrayIP(myIP[2]);
               showDisplayIP();
@@ -1180,7 +1189,7 @@ void processCurrentMode(int displayMode) {
           }
 
           if (tempDisplayMode == TEMP_IP_ADDR4) {
-            if (useWiFi > 0) {
+            if (getIsConnected()) {
               IPAddress myIP = WiFi.localIP();
               loadNumberArrayIP(myIP[3]);
               showDisplayIP();
@@ -1214,10 +1223,10 @@ void processCurrentMode(int displayMode) {
             boolean msgDisplaying;
             switch (slotsMode) {
               case SLOTS_MODE_1M_SCR_SCR:
-              {
-                msgDisplaying = transition.scrollInScrambleOut(nowMillis);
-                break;
-              }
+                {
+                  msgDisplaying = transition.scrollInScrambleOut(nowMillis);
+                  break;
+                }
             }
 
             // Continue slots
@@ -1247,7 +1256,7 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_HOURS_SET: {
-        if (useWiFi > 0) {
+        if (ntpTimeValid()) {
           // skip past the time and date settings
           nextMode += 6;
           currentMode += 6;
@@ -1442,7 +1451,7 @@ void processCurrentMode(int displayMode) {
       }
     case MODE_PIR_TIMEOUT_DOWN: {
         if (button1.isButtonPressedAndReleased()) {
-          pirTimeout-=10;
+          pirTimeout -= 10;
           if (pirTimeout < PIR_TIMEOUT_MIN) {
             pirTimeout = PIR_TIMEOUT_MAX;
           }
@@ -1453,7 +1462,7 @@ void processCurrentMode(int displayMode) {
       }
     case MODE_PIR_TIMEOUT_UP: {
         if (button1.isButtonPressedAndReleased()) {
-          pirTimeout+=10;
+          pirTimeout += 10;
           if (pirTimeout > PIR_TIMEOUT_MAX) {
             pirTimeout = PIR_TIMEOUT_MIN;
           }
@@ -1937,40 +1946,40 @@ void outputDisplay()
       }
     } else
 
-    // --------------------- Fade ---------------------
+      // --------------------- Fade ---------------------
 
-    // manage fading, each impression we show 1 fade step less of the old
-    // digit and 1 fade step more of the new
-    if (tmpDispType == FADE) {
-      float countsPerStep = (digitOffTime - digitOnTime) / fadeSteps;
+      // manage fading, each impression we show 1 fade step less of the old
+      // digit and 1 fade step more of the new
+      if (tmpDispType == FADE) {
+        float countsPerStep = (digitOffTime - digitOnTime) / fadeSteps;
 
-      if (NumberArray[i] != currNumberArray[i]) {
-        // Start the fade
-        if (fadeState[i] == 0) {
+        if (NumberArray[i] != currNumberArray[i]) {
           // Start the fade
-          fadeState[i] = fadeSteps;
+          if (fadeState[i] == 0) {
+            // Start the fade
+            fadeState[i] = fadeSteps;
+            digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
+          }
+        }
+
+        if (fadeState[i] == 1) {
+          // finish the fade
+          fadeState[i] = 0;
+          currNumberArray[i] = NumberArray[i];
+          digitSwitchTime = digitOffTime;
+        } else if (fadeState[i] > 1) {
+          // Continue the fade
+          fadeState[i] = fadeState[i] - 1;
           digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
         }
-      }
+      } else
 
-      if (fadeState[i] == 1) {
-        // finish the fade
-        fadeState[i] = 0;
+        // --------------------- Normal ---------------------
+
+      {
+        digitSwitchTime = DIGIT_DISPLAY_NEVER;
         currNumberArray[i] = NumberArray[i];
-        digitSwitchTime = digitOffTime;
-      } else if (fadeState[i] > 1) {
-        // Continue the fade
-        fadeState[i] = fadeState[i] - 1;
-        digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
       }
-    } else
-
-    // --------------------- Normal ---------------------
-
-    {
-      digitSwitchTime = DIGIT_DISPLAY_NEVER;
-      currNumberArray[i] = NumberArray[i];
-    }
 
     // Main display loop - everything up to now was preparation
     for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
@@ -2005,7 +2014,7 @@ void digitOff(byte digit, byte value) {
 }
 
 // ************************************************************
-// Do some yields after every digit. The number determines 
+// Do some yields after every digit. The number determines
 // the responsiveness of the UI and the blink in the display.
 // ************************************************************
 #define YIELD_COUNT_PER_DIGIT 10
@@ -2034,10 +2043,10 @@ void ledsOff() {
 // Perform the shift out to the shift register
 // ************************************************************
 void shiftOut(uint8_t _loadPin,
-                  uint8_t _dataPin1,
-                  uint8_t _clockPin,
-                  uint8_t _bitOrder,
-                  uint8_t _val1) {
+              uint8_t _dataPin1,
+              uint8_t _clockPin,
+              uint8_t _bitOrder,
+              uint8_t _val1) {
   uint8_t i;
 
   digitalWrite(_loadPin, LOW);
@@ -2233,7 +2242,7 @@ void resetSecond() {
   setRTCTime();
 }
 
-  // ************************************************************
+// ************************************************************
 // increment the time by 1 Sec
 // ************************************************************
 void incSecond() {
@@ -2342,13 +2351,9 @@ void incYears() {
 // Set the time from the value we get back from the timer server
 // ************************************************************
 void setTimeFromServer(String timeString) {
-  int years = getIntValue(timeString, ',', 0);
-  byte months = getIntValue(timeString, ',', 1);
-  byte days = getIntValue(timeString, ',', 2);
-  byte hours = getIntValue(timeString, ',', 3);
-  byte minutes = getIntValue(timeString, ',', 4);
-  byte seconds = getIntValue(timeString, ',', 5);
-  setTime(hours, minutes, seconds, days, months, years);
+  int intValues[6];
+  grabInts(timeString, &intValues[0], ",");
+  setTime(intValues[SYNC_HOURS], intValues[SYNC_MINS], intValues[SYNC_SECS], intValues[SYNC_DAY], intValues[SYNC_MONTH], intValues[SYNC_YEAR]);
 }
 
 
@@ -2390,7 +2395,7 @@ boolean checkBlanking() {
 // Get the readable version of the PIR state
 // ************************************************************
 String getPIRStateDisplay() {
-  float lastMotionDetection = (nowMillis - pirLastSeen)/1000.0;
+  float lastMotionDetection = (nowMillis - pirLastSeen) / 1000.0;
   String part3 = " S ago";
   if (blanked) {
     part3 = " S ago (blanked)";
@@ -2420,25 +2425,25 @@ boolean getHoursBlanked() {
 // ************************************************************
 void setTubesAndLEDSBlankMode() {
   if (blanked) {
-    switch(blankMode) {
+    switch (blankMode) {
       case BLANK_MODE_TUBES:
-      {
-        blankTubes = true;
-        blankLEDs = false;
-        break;
-      }
+        {
+          blankTubes = true;
+          blankLEDs = false;
+          break;
+        }
       case BLANK_MODE_LEDS:
-      {
-        blankTubes = false;
-        blankLEDs = true;
-        break;
-      }
+        {
+          blankTubes = false;
+          blankLEDs = true;
+          break;
+        }
       case BLANK_MODE_BOTH:
-      {
-        blankTubes = true;
-        blankLEDs = true;
-        break;
-      }
+        {
+          blankTubes = true;
+          blankLEDs = true;
+          break;
+        }
     }
   } else {
     blankTubes = false;
@@ -2454,17 +2459,17 @@ void randomRGBFlash(int delayVal) {
   randomSeed(analogRead(LDRPin));
 
   if (random(3) == 0) {
-    setAllLEDs(255,0,0);
+    setAllLEDs(255, 0, 0);
   }
   if (random(3) == 0) {
-    setAllLEDs(0,255,0);
+    setAllLEDs(0, 255, 0);
   }
   if (random(3) == 0) {
-    setAllLEDs(0,0,255);
+    setAllLEDs(0, 0, 255);
   }
   delay(delayVal);
 
-  setAllLEDs(0,0,0);
+  setAllLEDs(0, 0, 0);
   delay(delayVal);
 }
 
@@ -2472,10 +2477,10 @@ void randomRGBFlash(int delayVal) {
  * Set the diagnostic LED colour:
  * stepNumber 0..5
  * state: 0 = red, 1 = orange, 2 = green, 3 = blue
- */
+*/
 void setDiagnosticLED(byte stepNumber, byte state) {
   for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-    if(i > stepNumber) {
+    if (i > stepNumber) {
       ledR[i] = ledG[i] = ledB[i] = 0;
     } else if (i == stepNumber) {
       if (state == STATUS_RED) {
@@ -2564,11 +2569,11 @@ void testRTCTimeProvider() {
 void setRTCTime() {
   testRTCTimeProvider();
   if (useRTC) {
-    Clock.fillByYMD(year()%100,month(),day());
-    Clock.fillByHMS(hour(),minute(),second());
+    Clock.fillByYMD(year() % 100, month(), day());
+    Clock.fillByHMS(hour(), minute(), second());
     Clock.setTime();
 
-    debugMsg("Set RTC time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
+    debugMsg("Set RTC time to Net time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
   }
 }
 
@@ -2645,8 +2650,14 @@ boolean getConfigFromSpiffs() {
         if (json.success()) {
           debugMsg("parsed json");
 
-          timeServerURL = json["time_zone"].as<String>();
-          debugMsg("Loaded time server URL: " + timeServerURL);
+          ntpPool = json["ntp_pool"].as<String>();
+          debugMsg("Loaded NTP pool: " + ntpPool);
+
+          ntpUpdateInterval = json["ntp_update_interval"].as<unsigned long>();
+          debugMsg("Loaded NTP update interval: " + ntpUpdateInterval);
+
+          tzs = json["time_zone_string"].as<String>();
+          debugMsg("Loaded time zone string: " + tzs);
 
           hourMode = json["hourMode"].as<bool>();
           debugMsg("Loaded 12/24H mode: " + String(hourMode));
@@ -2758,7 +2769,9 @@ void saveConfigToSpiffs() {
 
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
-    json["time_zone"] = timeServerURL;
+    json["ntp_pool"] = ntpPool;
+    json["ntp_update_interval"] = ntpUpdateInterval;
+    json["time_zone_string"] = tzs;
     json["hourMode"] = hourMode;
     json["blankLeading"] = blankLeading;
     json["scrollback"] = scrollback;
@@ -2889,6 +2902,9 @@ void saveStatsToSpiffs() {
 // Reset configuration values back to what they once were
 // ************************************************************
 void factoryReset() {
+  ntpPool = NTP_POOL_DEFAULT;
+  ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
+  tzs = TIME_ZONE_STRING_DEFAULT;
   hourMode = HOUR_MODE_DEFAULT;
   blankLeading = LEAD_BLANK_DEFAULT;
   scrollback = SCROLLBACK_DEFAULT;
@@ -2943,27 +2959,15 @@ void rootPageHandler() {
   // Status table
   response_message += getTableHead2Col("Current Status", "Name", "Value");
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     IPAddress ip = WiFi.localIP();
     response_message += getTableRow2Col("WLAN IP", formatIPAsString(ip));
     response_message += getTableRow2Col("WLAN MAC", WiFi.macAddress());
     response_message += getTableRow2Col("WLAN SSID", WiFi.SSID());
-    response_message += getTableRow2Col("Time server URL", timeServerURL);
-    
-    getTimeFromTimeZoneServer(false);
-
-    if (lastTimeFromServer.startsWith("ERROR:")) {
-      response_message += getTableRow2Col("Time according to server", lastTimeFromServer);
-    } else {
-      int years = getIntValue(lastTimeFromServer, ',', 0);
-      byte months = getIntValue(lastTimeFromServer, ',', 1);
-      byte days = getIntValue(lastTimeFromServer, ',', 2);
-      byte hours = getIntValue(lastTimeFromServer, ',', 3);
-      byte minutes = getIntValue(lastTimeFromServer, ',', 4);
-      byte seconds = getIntValue(lastTimeFromServer, ',', 5);
-      String formattedTime = String(years)+":"+String(months)+":"+String(days)+" "+String(hours)+":"+String(minutes)+":"+String(seconds);
-      response_message += getTableRow2Col("Time according to server", formattedTime);
-    }
+    response_message += getTableRow2Col("NTP Pool", ntpPool);
+    response_message += getTableRow2Col("TZ", getenv("TZ"));
+    response_message += getTableRow2Col("Last NTP time", lastTimeFromServer);
   }
   else
   {
@@ -2978,6 +2982,16 @@ void rootPageHandler() {
   long lastUpdateTimeSecs = (nowMillis - lastUpdateFromServer) / 1000;
   response_message += getTableRow2Col("Last time update", secsToReadableString(lastUpdateTimeSecs) + " ago");
 
+  signed long absNextUpdate = abs(nextUpdateFromServer);
+  String overdueInd = "";
+  if (nextUpdateFromServer < 0) {
+    overdueInd = " overdue";
+    absNextUpdate = -nextUpdateFromServer;
+  } else {
+    absNextUpdate = nextUpdateFromServer;
+  }
+  response_message += getTableRow2Col("Time before next update", secsToReadableString(absNextUpdate) + overdueInd);
+
   response_message += getTableRow2Col("Version", SOFTWARE_VERSION);
 
   // Scan I2C bus
@@ -2987,21 +3001,22 @@ void rootPageHandler() {
     int error = Wire.endTransmission();
     if (error == 0) {
       String slaveMsg = "Found I2C slave at";
-      response_message += getTableRow2Col(slaveMsg,idx);
+      response_message += getTableRow2Col(slaveMsg, idx);
     }
   }
 
   response_message += getTableFoot();
 
   // ******************** Clock Info table ***************************
-  double onTimeHrs = uptimeMins/60.0;
-  double tubeOnTimeHrs = tubeOnTimeMins/60.0;
+  double onTimeHrs = uptimeMins / 60.0;
+  double tubeOnTimeHrs = tubeOnTimeMins / 60.0;
   float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
   String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
   String rtcState = useRTC ? "Installed" : "Not installed";
   String timeSource;
-  if (useWiFi > 0) {
-    timeSource = "WiFi (" + String(useWiFi) + ")";
+
+  if (ntpTimeValid()) {
+    timeSource = "NTP";
   } else if (useRTC) {
     timeSource = "RTC";
   } else {
@@ -3010,7 +3025,7 @@ void rootPageHandler() {
   String currentTime = String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
   response_message += getTableHead2Col("Clock information", "Name", "Value");
   response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
-  response_message += getTableRow2Col("Digit brightness %", String(digitBrightness,2));
+  response_message += getTableRow2Col("Digit brightness %", String(digitBrightness, 2));
   response_message += getTableRow2Col("Motion Sensor", motionSensorState);
   response_message += getTableRow2Col("Time Source", timeSource);
   response_message += getTableRow2Col("Display Time", currentTime);
@@ -3019,8 +3034,8 @@ void rootPageHandler() {
     response_message += getTableRow2Col("RTC Time", getRTCTime(false));
   }
   response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
-  response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs,2));
-  response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs,2));
+  response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs, 2));
+  response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs, 2));
   response_message += getTableFoot();
 
   // ******************** ESP8266 Info table ***************************
@@ -3031,7 +3046,7 @@ void rootPageHandler() {
   response_message += getTableRow2Col("Free heap", ESP.getFreeHeap());
   response_message += getTableRow2Col("Boot version", ESP.getBootVersion());
   response_message += getTableRow2Col("CPU Freqency (MHz)", ESP.getCpuFreqMHz());
-  response_message += getTableRow2Col("Flash speed (MHz)", ESP.getFlashChipSpeed()/1000000);
+  response_message += getTableRow2Col("Flash speed (MHz)", ESP.getFlashChipSpeed() / 1000000);
   response_message += getTableRow2Col("SDK version", ESP.getSdkVersion());
   response_message += getTableRow2Col("Chip ID", String(ESP.getChipId(), HEX));
   response_message += getTableRow2Col("Flash Chip ID", String(ESP.getFlashChipId(), HEX));
@@ -3051,13 +3066,60 @@ void rootPageHandler() {
 void timeServerPageHandler() {
   debugMsg("Time page in");
 
-  // Check if there are any GET parameters, if there are, we are configuring
-  if (server.hasArg("timeserverurl"))
-  {
-    if (strlen(server.arg("timeserverurl").c_str()) > 4) {
-      timeServerURL = server.arg("timeserverurl").c_str();
+  boolean changed = false;
+
+  if (server.hasArg("ntppool")) {
+    debugMsg("Got NTP Pool param: " + server.arg("ntppool"));
+    String newNTPPool = server.arg("ntpupdate");
+    if (newNTPPool != ntpPool) {
+      if ((newNTPPool.length() < 7) || (newNTPPool.length() > 64)) {
+        debugMsg("Got a bad URL for the NTP pool, resetting");
+      } else {
+        changed = true;
+        ntpPool = newNTPPool;
+        debugMsg("-> Set NTP Pool: " + String(ntpPool));
+      }
     }
   }
+
+  if (server.hasArg("ntpupdate")) {
+    debugMsg("Got NTP update interval param: " + server.arg("ntpupdate"));
+    unsigned long newNTPUpdateInterval = atoi(server.arg("ntpupdate").c_str());
+    if (newNTPUpdateInterval != ntpUpdateInterval) {
+      changed = true;
+      ntpUpdateInterval = newNTPUpdateInterval;
+      nextUpdateFromServer = ntpUpdateInterval;
+      debugMsg("-> Set NTP update interval: " + String(ntpUpdateInterval));
+    }
+  }
+
+  if (server.hasArg("tzs")) {
+    debugMsg("Got Time Zone String: " + server.arg("tzs"));
+    String newTZS = server.arg("tzs");
+    if (newTZS != tzs) {
+      if ((newTZS.length() < 7) || (newTZS.length() > 64)) {
+        debugMsg("Got a bad TZS, ignoring");
+      } else {
+        changed = true;
+        tzs = newTZS;
+        setenv("TZ", tzs.c_str(), 1);
+        nextUpdateFromServer = 0;
+        debugMsg("-> Set Time Zone String: " + String(tzs));
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------------
+  // Save the options
+  if (changed) {
+    debugMsg("Config options changed, saving them");
+    saveConfigToSpiffs();
+
+    // Save the stats while we are at it
+    saveStatsToSpiffs();
+  }
+
+  // -----------------------------------------------------------------------------
 
   String response_message = getHTMLHead(getIsConnected());
   response_message += getNavBar();
@@ -3065,16 +3127,10 @@ void timeServerPageHandler() {
   // form header
   response_message += getFormHead("Select time server");
 
-  // only fill in the value we have if it looks realistic
-  if ((timeServerURL.length() < 10) || (timeServerURL.length() > 250)) {
-    debugMsg("Got a bad URL for the TZS, resetting");
-    timeServerURL = DEFAULT_TIME_SERVER_URL_1;
-  } else {
-    // save the timeserver URL
-    saveConfigToSpiffs();
-  }
+  response_message += getTextInputWide("NTP Pool", "ntppool", ntpPool, false);
+  response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpUpdateInterval, false);
+  response_message += getTextInputWide("Time Zone String", "tzs", tzs, false);
 
-  response_message += getTextInputWide("URL", "timeserverurl", timeServerURL, false);
   response_message += getSubmitButton("Set");
 
   response_message += getFormFoot();
@@ -3733,10 +3789,10 @@ void setDisplayValuePageHandler() {
 
 unsigned char hex2bcd (unsigned char x)
 {
-    unsigned char y;
-    y = (x / 10) << 4;
-    y = y | (x % 10);
-    return (y);
+  unsigned char y;
+  y = (x / 10) << 4;
+  y = y | (x % 10);
+  return (y);
 }
 
 // ************************************************************
@@ -3751,6 +3807,8 @@ void utilityPageHandler()
   response_message += "<hr><li><a href=\"/resetwifi\">Restart WiFi module</a></li>";
   response_message += "<hr><li><a href=\"/reset\">Clear WiFi config and restart module</a></li>";
   response_message += "<hr><li><a href=\"/update\">Update firmware</a></li>";
+  response_message += "<hr><li><a href=\"/ntpupdate\">Force update from NTP now</a></li>";
+  response_message += "<hr><li><a href=\"/factoryreset\">Perform factory reset</a></li>";
 
   response_message += getHTMLFoot();
   server.send(200, "text/html", response_message);
@@ -3775,6 +3833,28 @@ void resetWiFiPageHandler() {
   debugMsg("Reset WiFi page out");
   delay(1000);    // wait to deliver response
   ESP.restart();  // should reboot
+}
+
+// ************************************************************
+// Reset just the wifi
+// ************************************************************
+void ntpUpdatePageHandler() {
+  debugMsg("NTP Update page in");
+
+  getTimeFromTimeZoneServer();
+
+  debugMsg("NTP Update page out");
+}
+
+// ************************************************************
+// Reset just the wifi
+// ************************************************************
+void factoryResetPageHandler() {
+  debugMsg("Factory Reset page in");
+
+  factoryReset();
+
+  debugMsg("Factory Reset page out");
 }
 
 // ************************************************************
@@ -3816,49 +3896,116 @@ void localCSSHandler()
 // ----------------------------------------------------------------------------------------------------
 
 // ************************************************************
-// Get the local time from the time zone server. Sets the internal
-// variables "lastTimeFromServer", "useWiFi" and 
-// "lastUpdateFromServer".
+// Asynchronous NTP query
 // ************************************************************
-void getTimeFromTimeZoneServer(boolean updateLU) {
-  debugMsg("Get Time in");
+void getTimeFromTimeZoneServer() {
+  debugMsg("Async NTP in");
 
-  HTTPClient http;
-
-  http.begin(timeServerURL);
-  String espId = "";espId += ESP.getChipId();
-  http.addHeader("ESP",espId);
-
-  int httpCode = http.GET();
-
-  // file found at server
-  if (httpCode == HTTP_CODE_OK) {
-    lastTimeFromServer = http.getString();
-
-    useWiFi = MAX_WIFI_TIME;
-
-    if (updateLU)
-     lastUpdateFromServer = nowMillis;
-     
-     setRTCTime();
-  } else {
-    debugMsg("[HTTP] GET... failed, error: " + http.errorToString(httpCode));
-    if (httpCode > 0) {
-      // RFC error codes don't have a string mapping
-      lastTimeFromServer = "ERROR: " + String(httpCode);
-    } else {
-      // ESP error codes have a string mapping
-      lastTimeFromServer = "ERROR: " + String(httpCode) + " ("+ http.errorToString(httpCode) + ")";
-    }
+  if (WiFi.status() != WL_CONNECTED) {
+    debugMsg("WiFi not connected. Abort.");
+    return;
   }
 
-  http.end();
+  IPAddress serverIP;
+  WiFi.hostByName(ntpPool.c_str(), serverIP);
+  String str = "NTP IPAddr : ";
+  str += serverIP.toString();
+  debugMsg(str);
 
-  debugMsg("Get Time out");
+  byte buffer[NTP_PACKET_SIZE];
+  memset(buffer, 0, NTP_PACKET_SIZE);
+  buffer[0] = 0b11100011;   // LI, Version, Mode
+  buffer[1] = 0;        // Stratum, or type of clock
+  buffer[2] = 9;        // Polling Interval (9 = 2^9 secs = ~9 mins, close to our 10 min default)
+  buffer[3] = 0xEC;     // Peer Clock Precision
+  // 8 bytes of zero for Root Delay & Root Dispersion
+  buffer[12]  = 'X';      // "kiss code", see RFC5905
+  buffer[13]  = 'E';      // (codes starting with 'X' are not interpreted)
+  buffer[14]  = 'Z';
+  buffer[15]  = 'T';
+
+  ntpStarted = millis();
+  udp.connect(serverIP, 123); //NTP requests are to port 123
+  udp.write(buffer, NTP_PACKET_SIZE);
+  udp.onPacket(onPacketReceived_cb);
+
+  debugMsg("Async GET Time out");
 }
 
 // ************************************************************
-// What is says on the tin
+// Asynchronous NTP callback for handling responses
+// ************************************************************
+void onPacketReceived_cb(AsyncUDPPacket packet) {
+  debugMsgCont("UDP Packet Type: ");
+  debugMsg(packet.isBroadcast() ? "Broadcast" : packet.isMulticast() ? "Multicast" : "Unicast");
+  debugMsgCont("From: ");
+  debugMsgCont(packet.remoteIP());
+  debugMsgCont(":");
+  debugMsg(packet.remotePort());
+  debugMsgCont("To: ");
+  debugMsgCont(packet.localIP());
+  debugMsgCont(":");
+  debugMsg(packet.localPort());
+  debugMsgCont("Length: ");
+  debugMsg(packet.length());
+
+  if (packet.length() != 48) {
+    debugMsg("Received data, but got invalid length: " + String(packet.length()));
+  } else {
+    uint8_t buffer[NTP_PACKET_SIZE];
+    memcpy(&buffer, packet.data(), packet.length());
+    //prepare timestamps
+    uint32_t highWord, lowWord;
+    highWord = ( buffer[16] << 8 | buffer[17] ) & 0x0000FFFF;
+    lowWord = ( buffer[18] << 8 | buffer[19] ) & 0x0000FFFF;
+    uint32_t reftsSec = highWord << 16 | lowWord;       // reference timestamp seconds
+
+    highWord = ( buffer[32] << 8 | buffer[33] ) & 0x0000FFFF;
+    lowWord = ( buffer[34] << 8 | buffer[35] ) & 0x0000FFFF;
+    uint32_t rcvtsSec = highWord << 16 | lowWord;       // receive timestamp seconds
+
+    highWord = ( buffer[40] << 8 | buffer[41] ) & 0x0000FFFF;
+    lowWord = ( buffer[42] << 8 | buffer[43] ) & 0x0000FFFF;
+    uint32_t secsSince1900 = highWord << 16 | lowWord;      // transmit timestamp seconds
+
+    highWord = ( buffer[44] << 8 | buffer[45] ) & 0x0000FFFF;
+    lowWord = ( buffer[46] << 8 | buffer[47] ) & 0x0000FFFF;
+    uint32_t fraction = highWord << 16 | lowWord;       // transmit timestamp fractions
+
+    //check if received data makes sense
+    //buffer[1] = stratum - should be 1..15 for valid reply
+    //also checking that all timestamps are non-zero and receive timestamp seconds are <= transmit timestamp seconds
+    if ((buffer[1] < 1) or (buffer[1] > 15) or (reftsSec == 0) or (rcvtsSec == 0) or (rcvtsSec > secsSince1900)) {
+      // we got invalid packet
+      debugMsg("Got data, but got INVALID_DATA");
+      return;
+    }
+
+    // Set the t and measured_at variables that were passed by reference
+    uint32_t done = millis();
+    debugMsg("success round trip " + String(done - ntpStarted) + " ms");
+    unsigned long t = secsSince1900 - 2208988800UL;         // Subtract 70 years to get seconds since 1970
+    uint16_t ms = fraction / 4294967UL;         // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
+    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms; // Assume symmetric network latency and return when we think the whole second was.
+
+    lastUpdateFromServer = done;
+    nextUpdateFromServer = ntpUpdateInterval;
+    debugMsg("set nu: " + String(nextUpdateFromServer));
+
+    time_t ntpTime = t;
+    const tm* tm = localtime(&ntpTime);
+
+    String timeString = String(tm->tm_year + 1900) + "," + String(tm->tm_mon + 1) + "," + String(tm->tm_mday) + "," + String(tm->tm_hour) + "," + String(tm->tm_min) + "," + String(tm->tm_sec);
+    debugMsg("NTP Update time str: " + timeString);
+    lastTimeFromServer = timeString;
+    setTimeFromServer(lastTimeFromServer);
+    setRTCTime();
+    debugMsg("-> Set RTC time to Net time");
+  }
+}
+
+// ************************************************************
+// What it says on the tin
 // ************************************************************
 boolean getIsConnected() {
   return WiFi.isConnected();
@@ -3867,9 +4014,9 @@ boolean getIsConnected() {
 // ************************************************************
 // Tell the Diag LED that we have connected
 // ************************************************************
-void configModeCallback (WiFiManager *myWiFiManager) {
+void configModeCallback(WiFiManager *myWiFiManager) {
   debugMsg("*** Entered config mode");
-  setDiagnosticLED(DIAGS_WIFI,STATUS_BLUE);
+  setDiagnosticLED(DIAGS_WIFI, STATUS_BLUE);
 }
 
 // ************************************************************
@@ -3877,11 +4024,15 @@ void configModeCallback (WiFiManager *myWiFiManager) {
 // ************************************************************
 void reconnectDroppedConnection() {
   // Try to reconnect if we are  not connected
-   if (WiFi.status() != WL_CONNECTED) {
-      debugMsg("Attepting to reconnect dropped connection WiFi connection to " + WiFi.SSID());
-      ETS_UART_INTR_DISABLE();
-      wifi_station_disconnect();
-      ETS_UART_INTR_ENABLE();
-      WiFi.begin();
-   }
+  if (WiFi.status() != WL_CONNECTED) {
+    debugMsg("Attepting to reconnect dropped connection WiFi connection to " + WiFi.SSID());
+    ETS_UART_INTR_DISABLE();
+    wifi_station_disconnect();
+    ETS_UART_INTR_ENABLE();
+    WiFi.begin();
+  }
+}
+
+boolean ntpTimeValid() {
+  return lastUpdateFromServer != 0 && ((nowMillis - lastUpdateFromServer) < (2000 * ntpUpdateInterval));
 }

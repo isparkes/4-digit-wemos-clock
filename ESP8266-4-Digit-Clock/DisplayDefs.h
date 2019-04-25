@@ -25,7 +25,7 @@
 
 #define DIAGS_SPIFFS      0
 #define DIAGS_WIFI        1
-#define DIAGS_TIMESERVER  2
+#define DIAGS_NTP         2
 #define DIAGS_RTC         3
 
 #define STATUS_RED    0
