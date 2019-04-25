@@ -273,6 +273,9 @@ void setup()
   // turn off all digits
   digitOff(0, 0);
 
+  // set the time, this will be overwritten later if we have other time sources
+  // setTime(12, 34, 56, 1, 4, 2019);
+  
   if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
     factoryReset();
@@ -326,7 +329,7 @@ void setup()
   debugMsg("I2C master started");
 
   /* Set page handler functions */
-  server.on("/",            rootPageHandler);
+  server.on("/", rootPageHandler);
 
   server.on("/time", []() {
     if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
@@ -354,6 +357,13 @@ void setup()
       return server.requestAuthentication();
     }
     return ntpUpdatePageHandler();
+  });
+
+  server.on("/factoryreset", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return factoryResetPageHandler();
   });
 
   server.on("/clockconfig", []() {
@@ -463,7 +473,6 @@ void setup()
 
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
-  setTime(12, 34, 56, 1, 4, 2019);
 
   testRTCTimeProvider();
   if (useRTC) {
@@ -2352,8 +2361,9 @@ void incYears() {
 // ************************************************************
 void setTimeFromServer(String timeString) {
   int intValues[6];
-  grabInts(timeString, &intValues[0], ",");
+  grabInts(timeString, &intValues[0], ",");  
   setTime(intValues[SYNC_HOURS], intValues[SYNC_MINS], intValues[SYNC_SECS], intValues[SYNC_DAY], intValues[SYNC_MONTH], intValues[SYNC_YEAR]);
+  debugMsg("Set internal time to NTP time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));  
 }
 
 
@@ -2573,7 +2583,7 @@ void setRTCTime() {
     Clock.fillByHMS(hour(), minute(), second());
     Clock.setTime();
 
-    debugMsg("Set RTC time to Net time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
+    debugMsg("Set RTC time to internal time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
   }
 }
 
@@ -3787,14 +3797,6 @@ void setDisplayValuePageHandler() {
   server.send(200, "text/html", response_message);
 }
 
-unsigned char hex2bcd (unsigned char x)
-{
-  unsigned char y;
-  y = (x / 10) << 4;
-  y = y | (x % 10);
-  return (y);
-}
-
 // ************************************************************
 // Access to utility functions
 // ************************************************************
@@ -3836,24 +3838,30 @@ void resetWiFiPageHandler() {
 }
 
 // ************************************************************
-// Reset just the wifi
+// Do an NTP update now
 // ************************************************************
 void ntpUpdatePageHandler() {
   debugMsg("NTP Update page in");
 
   getTimeFromTimeZoneServer();
 
+  server.sendHeader("Location", "/utility", true);
+  server.send(302, "text/plain", "");
+
   debugMsg("NTP Update page out");
 }
 
 // ************************************************************
-// Reset just the wifi
+// Reset all the settings
 // ************************************************************
 void factoryResetPageHandler() {
   debugMsg("Factory Reset page in");
 
   factoryReset();
 
+  server.sendHeader("Location", "/utility", true);
+  server.send(302, "text/plain", "");
+  
   debugMsg("Factory Reset page out");
 }
 
@@ -4000,7 +4008,6 @@ void onPacketReceived_cb(AsyncUDPPacket packet) {
     lastTimeFromServer = timeString;
     setTimeFromServer(lastTimeFromServer);
     setRTCTime();
-    debugMsg("-> Set RTC time to Net time");
   }
 }
 
