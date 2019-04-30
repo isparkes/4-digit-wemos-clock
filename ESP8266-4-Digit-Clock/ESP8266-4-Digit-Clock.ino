@@ -42,6 +42,7 @@
 #include <ESPAsyncUDP.h>        // https://github.com/me-no-dev/ESPAsyncUDP (master HEAD)
 
 // Other parts of the code, broken out for clarity
+#include "Globals.h"
 #include "ClockButton.h"
 #include "Transition.h"
 #include "DisplayDefs.h"
@@ -53,34 +54,6 @@
 #define SOFTWARE_VERSION    1
 
 #define DEBUG_OFF
-
-#ifdef DEBUG
-#define debugMsg(x)  Serial.println (x)
-#define debugMsgCont(x)  Serial.print (x)
-#define setupDebug()  Serial.begin(115200)
-#else
-#define debugMsg(x)
-#define debugMsgCont(x)
-#define setupDebug()
-#endif
-
-// ------------------------ Wifi ------------------------
-
-// NTP
-#define NTP_POOL_DEFAULT "pool.ntp.org"
-#define NTP_PACKET_SIZE 48
-#define TIME_ZONE_STRING_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3"
-#define NTP_UPDATE_INTERVAL_DEFAULT 7261
-#define NTP_UPDATE_INTERVAL_MIN 60
-#define NTP_UPDATE_INTERVAL_MAX 86400
-
-String ntpPool = NTP_POOL_DEFAULT;
-String tzs = TIME_ZONE_STRING_DEFAULT;
-unsigned long lastUpdateFromServer = 0;
-signed long nextUpdateFromServer = 0;
-String lastTimeFromServer = "";
-unsigned int ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
-unsigned long ntpStarted = 0;
 
 // ------------------- General Management ------------------------
 
@@ -106,40 +79,17 @@ AsyncUDP udp;
 #define CLOCKPin    12    // D6
 #define LEDPin1     15    // D8
 #define LEDPin2     16    // D0
-#define DATA1Pin    13    // D7 - Grids
+#define DATA1Pin    13    // D7
 
 //**********************************************************************************
 Transition transition(500, 1000, 3000);
 //**********************************************************************************
-
-byte NumberArray[DIGIT_COUNT]     = {0, 0, 0, 0};
-byte currNumberArray[DIGIT_COUNT] = {0, 0, 0, 0};
-byte displayType[DIGIT_COUNT]     = {FADE, FADE, FADE, FADE};
-byte fadeState[DIGIT_COUNT]       = {0, 0, 0, 0};
-byte valueDisplayTime             = 0;
-byte valueToShow[DIGIT_COUNT / 2]   = {0, 0};
-byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL >> 4, NORMAL | NORMAL >> 4}; // All normal by default
-
-// how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
-// 300 is about 1 second
-int fadeSteps = FADE_STEPS_DEFAULT;
-int digitOffCount = DIGIT_DISPLAY_OFF;
-int scrollSteps = SCROLL_STEPS_DEFAULT;
-boolean scrollback = true;
-boolean fade = true;
-byte antiGhost = ANTI_GHOST_DEFAULT;
-int dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
-float fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
 
 // For display blinking
 boolean blinkState;
 
 // leading digit blanking
 boolean blankLeading = false;
-
-// Dimming value
-const int DIM_VALUE = DIGIT_DISPLAY_COUNT / 5;
-int minDim = MIN_DIM_DEFAULT;
 
 unsigned int tempDisplayModeDuration;      // time for the end of the temporary display
 int  tempDisplayMode;
@@ -148,9 +98,6 @@ byte slotsMode = SLOTS_MODE_DEFAULT;
 
 byte currentMode = MODE_TIME;   // Initial cold start mode
 byte nextMode = currentMode;
-byte blankHourStart = 0;
-byte blankHourEnd = 0;
-byte blankMode = 0;
 boolean blankTubes = false;
 boolean blankLEDs = false;
 
@@ -162,11 +109,6 @@ int dimBright = SENSOR_HIGH_DEFAULT;
 double sensorLDRSmoothed = 0;
 double sensorFactor = (double)(DIGIT_DISPLAY_OFF) / (double)(dimBright - dimDark);
 int sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
-boolean useLDR = true;
-
-// ************************ Clock variables ************************
-// RTC, uses Analogue pins A4 (SDA) and A5 (SCL)
-DS1307 Clock;
 
 // State variables for detecting changes
 byte lastSec;
@@ -182,11 +124,14 @@ unsigned long blankSuppressedSelectionTimoutMillis = 0;   // Used for determinin
 
 boolean hourMode = false; // 24H
 
+// ************************ Clock variables ************************
+// RTC, uses Analogue pins A4 (SDA) and A5 (SCL)
+DS1307 Clock;
+
 // PIR
 unsigned long pirTimeout = PIR_TIMEOUT_DEFAULT;
 unsigned long pirLastSeen = 0;
 boolean pirInstalled = false;
-boolean usePIRPullup = true;
 int pirConsecutiveCounts = 300;  // set with a high value to stop the PIR being falsely detected the first time round the loop
 
 boolean triggeredThisSec = false;
@@ -204,13 +149,6 @@ boolean led2State;
 byte ledMode = 0;       // Separator LED mode
 
 byte backlightMode = BACKLIGHT_DEFAULT;
-
-// Back light intensities
-byte redCnl = COLOUR_RED_CNL_DEFAULT;
-byte grnCnl = COLOUR_GRN_CNL_DEFAULT;
-byte bluCnl = COLOUR_BLU_CNL_DEFAULT;
-byte cycleCount = 0;
-byte cycleSpeed = CYCLE_SPEED_DEFAULT;
 
 int colors[3];
 
@@ -236,14 +174,6 @@ ClockButton button1(inputPin1, true);
 
 unsigned long uptimeMins = 0;
 unsigned long tubeOnTimeMins = 0;
-
-// **************************** Auth ****************************
-#define WEB_USERNAME_DEFAULT "admin";
-#define WEB_PASSWORD_DEFAULT "setup";
-#define WEB_AUTH_DEFAULT true;
-boolean webAuthentication = WEB_AUTH_DEFAULT;
-String webUsername = WEB_USERNAME_DEFAULT;
-String webPassword = WEB_PASSWORD_DEFAULT;
 
 //**********************************************************************************
 
@@ -310,6 +240,7 @@ void setup()
   debugMsg("AP IP address: " + formatIPAsString(apIP));
   debugMsg("IP address: " + formatIPAsString(myIP));
 
+  // Set the default TZ for the local time interpretation
   setenv("TZ", tzs.c_str(), 0);
 
   // If we lose the connection, we try to recover it
@@ -3987,9 +3918,9 @@ void onPacketReceived_cb(AsyncUDPPacket packet) {
     // Set the t and measured_at variables that were passed by reference
     uint32_t done = millis();
     debugMsg("success round trip " + String(done - ntpStarted) + " ms");
-    unsigned long t = secsSince1900 - 2208988800UL;         // Subtract 70 years to get seconds since 1970
-    uint16_t ms = fraction / 4294967UL;         // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
-    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms; // Assume symmetric network latency and return when we think the whole second was.
+    unsigned long t = secsSince1900 - 2208988800UL;                     // Subtract 70 years to get seconds since 1970
+    uint16_t ms = fraction / 4294967UL;                                 // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
+    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms;  // Assume symmetric network latency and return when we think the whole second was.
 
     lastUpdateFromServer = done;
     nextUpdateFromServer = ntpUpdateInterval;

@@ -14,6 +14,9 @@
 #define DIGIT_DISPLAY_OFF     DIGIT_DISPLAY_COUNT     // Switch off the digit at the end by default
 #define DIGIT_DISPLAY_NEVER   -1                      // When we don't want to switch on or off (i.e. blanking)
 
+// Dimming value
+const int DIM_VALUE = DIGIT_DISPLAY_COUNT / 5;
+
 // Display mode, set per digit
 #define BLANKED  0
 #define DIMMED   1
