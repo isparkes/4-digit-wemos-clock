@@ -2026,7 +2026,7 @@ void digitOff(byte digit, byte value) {
 // Do some yields after every digit. The number determines
 // the responsiveness of the UI and the blink in the display.
 // ************************************************************
-#define YIELD_COUNT_PER_DIGIT 10
+#define YIELD_COUNT_PER_DIGIT 19
 void doYield() {
   for (int i = 0 ; i < YIELD_COUNT_PER_DIGIT; i++)
     yield();
@@ -2595,7 +2595,7 @@ void setRTCTime() {
 
 // ******************************************************************
 // Check the ambient light through the LDR (Light Dependent Resistor)
-// Smooths the reading over several reads.
+// Smooths the reading over a number of reads.
 //
 // The LDR in bright light gives reading of around 50, the reading in
 // total darkness is around 900.
@@ -2614,14 +2614,9 @@ int getDimmingFromLDR() {
     int rawSensorVal = 1100 - rawLDR;
 
     double sensorDiff = rawSensorVal - sensorLDRSmoothed;
-    sensorLDRSmoothed += (sensorDiff / sensorSmoothCountLDR);
+    sensorLDRSmoothed += (sensorDiff / (double)sensorSmoothCountLDR);
 
-    double sensorSmoothedResult = sensorLDRSmoothed - dimDark;
-    if (sensorSmoothedResult < dimDark) sensorSmoothedResult = dimDark;
-    if (sensorSmoothedResult > dimBright) sensorSmoothedResult = dimBright;
-    sensorSmoothedResult = (sensorSmoothedResult - dimDark) * sensorFactor;
-
-    int returnValue = sensorSmoothedResult * 2;
+    int returnValue = (sensorLDRSmoothed - dimDark) * sensorFactor;
 
     if (returnValue < minDim) returnValue = minDim;
     if (returnValue > DIGIT_DISPLAY_OFF) returnValue = DIGIT_DISPLAY_OFF;

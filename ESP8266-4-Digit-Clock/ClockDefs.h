@@ -19,8 +19,8 @@
 #define SENSOR_HIGH_DEFAULT   700 // Bright
 
 #define SENSOR_SMOOTH_READINGS_MIN     1
-#define SENSOR_SMOOTH_READINGS_MAX     255
-#define SENSOR_SMOOTH_READINGS_DEFAULT 100  // Speed at which the brighness adapts to changes
+#define SENSOR_SMOOTH_READINGS_MAX     500
+#define SENSOR_SMOOTH_READINGS_DEFAULT 150  // Speed at which the brighness adapts to changes
 
 // -------------------------------------------------------------------------------
 #define BLINK_COUNT_MAX       40   // The number of impressions between blink state toggle

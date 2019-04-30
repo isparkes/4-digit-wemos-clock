@@ -7,11 +7,11 @@
 
 // Display handling
 #define DISPLAY_COUNT_MIN     300                     // Minimum value we can set to
-#define DIGIT_DISPLAY_COUNT   3000                    // The number of times to traverse inner fade loop per digit
+#define DIGIT_DISPLAY_COUNT   5000                    // The number of times to traverse inner fade loop per digit
 #define DISPLAY_COUNT_MAX     DIGIT_DISPLAY_COUNT - 1 // Maximum value we can set to
 #define DIGIT_DISPLAY_START   0                       // Inner loop start point per digit
 #define DIGIT_DISPLAY_ON      0                       // Switch on the digit after the "front porch" by default
-#define DIGIT_DISPLAY_OFF     3000                    // Switch off the digit at the end by default
+#define DIGIT_DISPLAY_OFF     DIGIT_DISPLAY_COUNT     // Switch off the digit at the end by default
 #define DIGIT_DISPLAY_NEVER   -1                      // When we don't want to switch on or off (i.e. blanking)
 
 // Display mode, set per digit
