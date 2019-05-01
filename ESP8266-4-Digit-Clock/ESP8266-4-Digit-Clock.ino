@@ -50,132 +50,7 @@
 #include "ClockDefs.h"
 #include "ESP_DS1307.h"
 
-// Software version shown in config menu
-#define SOFTWARE_VERSION    1
-
 #define DEBUG_OFF
-
-// ------------------- General Management ------------------------
-
-ESP8266WebServer server(80);
-ESP8266HTTPUpdateServer httpUpdater;
-AsyncUDP udp;
-
-//**********************************************************************************
-//**********************************************************************************
-//*                               Variables                                        *
-//**********************************************************************************
-//**********************************************************************************
-
-// ***** Pin Defintions ****** Pin Defintions ****** Pin Defintions ******
-
-#define inputPin1   0     // D3
-#define pirPin      2     // D4 - Also blue LED pin
-#define LED_DOUT    3     // RX defined by DMA output of library
-#define LDRPin      A0    // ADC input
-
-// Shift register
-#define LATCHPin    14    // D5
-#define CLOCKPin    12    // D6
-#define LEDPin1     15    // D8
-#define LEDPin2     16    // D0
-#define DATA1Pin    13    // D7
-
-//**********************************************************************************
-Transition transition(500, 1000, 3000);
-//**********************************************************************************
-
-// For display blinking
-boolean blinkState;
-
-// leading digit blanking
-boolean blankLeading = false;
-
-unsigned int tempDisplayModeDuration;      // time for the end of the temporary display
-int  tempDisplayMode;
-
-byte slotsMode = SLOTS_MODE_DEFAULT;
-
-byte currentMode = MODE_TIME;   // Initial cold start mode
-byte nextMode = currentMode;
-boolean blankTubes = false;
-boolean blankLEDs = false;
-
-boolean testMode = false;
-
-// ************************ Ambient light dimming ************************
-int dimDark = SENSOR_LOW_DEFAULT;
-int dimBright = SENSOR_HIGH_DEFAULT;
-double sensorLDRSmoothed = 0;
-double sensorFactor = (double)(DIGIT_DISPLAY_OFF) / (double)(dimBright - dimDark);
-int sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
-
-// State variables for detecting changes
-byte lastSec;
-unsigned long nowMillis = 0;
-unsigned long lastCheckMillis = 0;
-
-byte dateFormat = DATE_FORMAT_DEFAULT;
-byte dayBlanking = DAY_BLANKING_DEFAULT;
-boolean blanked = false;
-byte blankSuppressStep = 0;    // The press we are on: 1 press = suppress for 1 min, 2 press = 1 hour, 3 = 1 day
-unsigned long blankSuppressedMillis = 0;   // The end time of the blanking, 0 if we are not suppressed
-unsigned long blankSuppressedSelectionTimoutMillis = 0;   // Used for determining the end of the blanking period selection timeout
-
-boolean hourMode = false; // 24H
-
-// ************************ Clock variables ************************
-// RTC, uses Analogue pins A4 (SDA) and A5 (SCL)
-DS1307 Clock;
-
-// PIR
-unsigned long pirTimeout = PIR_TIMEOUT_DEFAULT;
-unsigned long pirLastSeen = 0;
-boolean pirInstalled = false;
-int pirConsecutiveCounts = 300;  // set with a high value to stop the PIR being falsely detected the first time round the loop
-
-boolean triggeredThisSec = false;
-
-byte useRTC = false;  // true if we detect an RTC
-boolean onceHadAnRTC = false;
-
-// **************************** LED management ***************************
-boolean upOrDown;
-
-// Used to control the separator LEDs
-boolean led1State;
-boolean led2State;
-
-byte ledMode = 0;       // Separator LED mode
-
-byte backlightMode = BACKLIGHT_DEFAULT;
-
-int colors[3];
-
-// individual channel colours for the LEDs
-byte ledR[DIGIT_COUNT];
-byte ledG[DIGIT_COUNT];
-byte ledB[DIGIT_COUNT];
-
-// set up the NeoPixel library
-NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> leds(DIGIT_COUNT, LED_DOUT);
-
-// Strategy 3
-int changeSteps = 0;
-byte currentColour = 0;
-
-int impressionsPerSec = 0;
-int lastImpressionsPerSec = 0;
-
-// ********************** Input switch management **********************
-ClockButton button1(inputPin1, true);
-
-// **************************** Usage stats ****************************
-
-unsigned long uptimeMins = 0;
-unsigned long tubeOnTimeMins = 0;
-
-//**********************************************************************************
 
 //**********************************************************************************
 //**********************************************************************************
@@ -189,22 +64,13 @@ void setup()
   // Set up the LED output
   leds.Begin();
 
-  // Set up shift registers
-  pinMode(LATCHPin, OUTPUT);
-  pinMode(CLOCKPin, OUTPUT);
-  pinMode(DATA1Pin, OUTPUT);
-  pinMode(LEDPin1, OUTPUT);
-  pinMode(LEDPin2, OUTPUT);
-  pinMode(LEDPin2, OUTPUT);
-
-  // NOTE: Grounding the input pin causes it to actuate
-  pinMode(inputPin1, INPUT_PULLUP);
-
+  setPinModes();
+  
   // turn off all digits
   digitOff(0, 0);
 
-  // set the time, this will be overwritten later if we have other time sources
-  // setTime(12, 34, 56, 1, 4, 2019);
+  setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
+  delay(100); // later we might use this to allow special on handling such as factory reset
   
   if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
@@ -249,7 +115,7 @@ void setup()
   // See if we can already get the time
   getTimeFromTimeZoneServer();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
-  delay(1000);
+  delay(1500);
   if (nextUpdateFromServer > 0) {
     setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
   } else {
@@ -259,69 +125,7 @@ void setup()
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
 
-  /* Set page handler functions */
-  server.on("/", rootPageHandler);
-
-  server.on("/time", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return timeServerPageHandler();
-  });
-
-  server.on("/reset", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return resetPageHandler();
-  });
-
-  server.on("/resetwifi", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return resetWiFiPageHandler();
-  });
-
-  server.on("/ntpupdate", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return ntpUpdatePageHandler();
-  });
-
-  server.on("/factoryreset", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return factoryResetPageHandler();
-  });
-
-  server.on("/clockconfig", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return clockConfigPageHandler();
-  });
-
-  server.on("/setvalue", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return setDisplayValuePageHandler();
-  });
-
-  server.on("/utility", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
-      return server.requestAuthentication();
-    }
-    return utilityPageHandler();
-  });
-
-  server.on("/local.css",   localCSSHandler);
-
-  server.onNotFound(handleNotFound);
-
+  setServerPageHandlers();
   server.begin();
   debugMsg("HTTP server started");
 
@@ -3842,19 +3646,19 @@ void getTimeFromTimeZoneServer() {
 
   IPAddress serverIP;
   WiFi.hostByName(ntpPool.c_str(), serverIP);
-  String str = "NTP IPAddr : ";
+  String str = "NTP IPAddr: ";
   str += serverIP.toString();
   debugMsg(str);
 
   byte buffer[NTP_PACKET_SIZE];
   memset(buffer, 0, NTP_PACKET_SIZE);
   buffer[0] = 0b11100011;   // LI, Version, Mode
-  buffer[1] = 0;        // Stratum, or type of clock
-  buffer[2] = 9;        // Polling Interval (9 = 2^9 secs = ~9 mins, close to our 10 min default)
-  buffer[3] = 0xEC;     // Peer Clock Precision
+  buffer[1] = 0;            // Stratum, or type of clock
+  buffer[2] = 9;            // Polling Interval (9 = 2^9 secs = ~9 mins, close to our 10 min default)
+  buffer[3] = 0xEC;         // Peer Clock Precision
   // 8 bytes of zero for Root Delay & Root Dispersion
-  buffer[12]  = 'X';      // "kiss code", see RFC5905
-  buffer[13]  = 'E';      // (codes starting with 'X' are not interpreted)
+  buffer[12]  = 'X';        // "kiss code", see RFC5905
+  buffer[13]  = 'E';        // (codes starting with 'X' are not interpreted)
   buffer[14]  = 'Z';
   buffer[15]  = 'T';
 
@@ -3966,6 +3770,76 @@ void reconnectDroppedConnection() {
   }
 }
 
+// ************************************************************
+// see if the NTP time is still to be considered valid
+// ************************************************************
 boolean ntpTimeValid() {
   return lastUpdateFromServer != 0 && ((nowMillis - lastUpdateFromServer) < (2000 * ntpUpdateInterval));
+}
+
+// ************************************************************
+// set up the server page handlers
+// ************************************************************
+void setServerPageHandlers() {
+  server.on("/", rootPageHandler);
+
+  server.on("/time", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return timeServerPageHandler();
+  });
+
+  server.on("/reset", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return resetPageHandler();
+  });
+
+  server.on("/resetwifi", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return resetWiFiPageHandler();
+  });
+
+  server.on("/ntpupdate", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return ntpUpdatePageHandler();
+  });
+
+  server.on("/factoryreset", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return factoryResetPageHandler();
+  });
+
+  server.on("/clockconfig", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return clockConfigPageHandler();
+  });
+
+  server.on("/setvalue", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return setDisplayValuePageHandler();
+  });
+
+  server.on("/utility", []() {
+    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+      return server.requestAuthentication();
+    }
+    return utilityPageHandler();
+  });
+
+  server.on("/local.css",   localCSSHandler);
+
+  server.onNotFound(handleNotFound);
 }

@@ -5,6 +5,24 @@
 #ifndef ClockDefs_h
 #define ClockDefs_h
 
+// ***** Pin Defintions ****** Pin Defintions ****** Pin Defintions ******
+
+#define inputPin1   0     // D3
+#define pirPin      2     // D4 - Also blue LED pin
+#define LED_DOUT    3     // RX defined by DMA output of library
+#define LDRPin      A0    // ADC input
+
+// Shift register
+#define LATCHPin    14    // D5
+#define CLOCKPin    12    // D6
+#define LEDPin1     15    // D8
+#define LEDPin2     16    // D0
+#define DATA1Pin    13    // D7
+
+// -------------------------------------------------------------------------------
+// Software version shown in config menu
+#define SOFTWARE_VERSION    1
+
 // -------------------------------------------------------------------------------
 #define MIN_DIM_DEFAULT       500  // The default minimum dim count
 #define MIN_DIM_MIN           250  // The minimum dim count
@@ -235,4 +253,18 @@
 #define SYNC_YEAR 0
 
 // -------------------------------------------------------------------------------
+
+void setPinModes() {
+  // Set up shift registers
+  pinMode(LATCHPin, OUTPUT);
+  pinMode(CLOCKPin, OUTPUT);
+  pinMode(DATA1Pin, OUTPUT);
+  pinMode(LEDPin1, OUTPUT);
+  pinMode(LEDPin2, OUTPUT);
+  pinMode(LEDPin2, OUTPUT);
+
+  // NOTE: Grounding the input pin causes it to actuate
+  pinMode(inputPin1, INPUT_PULLUP);
+}
+
 #endif
