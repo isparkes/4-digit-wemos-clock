@@ -69,9 +69,19 @@ void setup()
   // turn off all digits
   digitOff(0, 0);
 
+  button1.reset();
+
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
-  delay(100); // later we might use this to allow special on handling such as factory reset
+  delay(1000);
   
+  button1.checkButton(millis());
+  if (button1.isButtonPressedNow()) {
+    setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
+    factoryReset();
+    delay(1000);
+    ESP.restart();
+  }
+
   if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
     factoryReset();
@@ -203,7 +213,6 @@ void setup()
     backlightMode = oldBacklightMode;
   }
 
-  // Clear down any spurious button action
   button1.reset();
 
   // initialise the internal time (in case we don't find the time provider)
@@ -2141,11 +2150,12 @@ boolean checkBlanking() {
 // ************************************************************
 String getPIRStateDisplay() {
   float lastMotionDetection = (nowMillis - pirLastSeen) / 1000.0;
-  String part3 = " S ago";
+  
+  String part3 = " ago";
   if (blanked) {
-    part3 = " S ago (blanked)";
+    part3 = " ago (blanked)";
   }
-  return "Motion detected " + String(lastMotionDetection, 2) + part3;
+  return "Motion detected " + secsToReadableString(lastMotionDetection) + part3;
 }
 
 // ************************************************************
@@ -2748,8 +2758,6 @@ void rootPageHandler() {
   response_message += getTableFoot();
 
   // ******************** Clock Info table ***************************
-  double onTimeHrs = uptimeMins / 60.0;
-  double tubeOnTimeHrs = tubeOnTimeMins / 60.0;
   float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
   String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
   String rtcState = useRTC ? "Installed" : "Not installed";
@@ -2774,8 +2782,8 @@ void rootPageHandler() {
     response_message += getTableRow2Col("RTC Time", getRTCTime(false));
   }
   response_message += getTableRow2Col("Impressions/Sec", lastImpressionsPerSec);
-  response_message += getTableRow2Col("Total Clock On Hrs", String(onTimeHrs, 2));
-  response_message += getTableRow2Col("Total Tube On Hrs", String(tubeOnTimeHrs, 2));
+  response_message += getTableRow2Col("Total Clock On Hrs", secsToReadableString(uptimeMins * 60));
+  response_message += getTableRow2Col("Total Tube On Hrs", secsToReadableString(tubeOnTimeMins * 60));
   response_message += getTableFoot();
 
   // ******************** ESP8266 Info table ***************************
