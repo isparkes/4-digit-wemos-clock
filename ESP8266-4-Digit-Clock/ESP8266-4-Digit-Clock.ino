@@ -411,7 +411,16 @@ void performOncePerSecondProcessing() {
   if ((valueDisplayTime > 0) && (valueDisplayTime < 0xff)) {
     valueDisplayTime--;
   }
+
+  // Reset PIR debounce
   pirConsecutiveCounts = 0;
+
+  // NTP updating
+  nextUpdateFromServer--;
+
+  if (nextUpdateFromServer < 0) {
+    getTimeFromTimeZoneServer();
+  }
 }
 
 // ************************************************************
@@ -419,12 +428,8 @@ void performOncePerSecondProcessing() {
 // ************************************************************
 void performOncePerMinuteProcessing() {
   debugMsg("---> OncePerMinuteProcessing");
-  nextUpdateFromServer -= 60;
-
+  
   debugMsg("nu: " + String(nextUpdateFromServer));
-
-  if (nextUpdateFromServer < 0)
-    getTimeFromTimeZoneServer();
 
   if (!ntpTimeValid()) {
     getRTCTime(true);
