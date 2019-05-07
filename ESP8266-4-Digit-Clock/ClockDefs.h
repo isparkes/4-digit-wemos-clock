@@ -225,6 +225,16 @@
 #define SLOTS_MODE_DEFAULT              1
 
 // -------------------------------------------------------------------------------
+#define SEPARATOR_DIM_FACTOR_MIN        10
+#define SEPARATOR_DIM_FACTOR_MAX        100
+#define SEPARATOR_DIM_FACTOR_DEFAULT    100
+
+// -------------------------------------------------------------------------------
+#define BACKLIGHT_DIM_FACTOR_MIN        10
+#define BACKLIGHT_DIM_FACTOR_MAX        100
+#define BACKLIGHT_DIM_FACTOR_DEFAULT    100
+
+// -------------------------------------------------------------------------------
 // RTC address of the onboard DS1307 (if installed)
 #define RTC_I2C_ADDRESS                 0x68
 

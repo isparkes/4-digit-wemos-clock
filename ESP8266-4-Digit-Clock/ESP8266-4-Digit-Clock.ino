@@ -30,7 +30,6 @@
 // Standard Libraries
 #include <FS.h>
 #include <Wire.h>
-#include <ESP8266HTTPUpdateServer.h>
 #include <DNSServer.h>          //https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer
 
 // Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
@@ -49,8 +48,9 @@
 #include "ClockUtils.h"
 #include "ClockDefs.h"
 #include "ESP_DS1307.h"
+#include "HtmlServer.h"
 
-#define DEBUG_OFF
+#define DEBUG
 
 //**********************************************************************************
 //**********************************************************************************
@@ -59,13 +59,20 @@
 //**********************************************************************************
 void setup()
 {
-  setupDebug();
+  WiFiManager wifiManager;
+
+#ifdef DEBUG
+  setupDebug(true);
+  debugMsg("");
+  debugMsg("--------------------- START ---------------------");
+  wifiManager.setDebugOutput(true);
+#endif
 
   // Set up the LED output
   leds.Begin();
 
   setPinModes();
-  
+
   // turn off all digits
   digitOff(0, 0);
 
@@ -73,7 +80,7 @@ void setup()
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
   delay(1000);
-  
+
   button1.checkButton(millis());
   if (button1.isButtonPressedNow()) {
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
@@ -90,11 +97,6 @@ void setup()
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_GREEN);
   }
 
-  WiFiManager wifiManager;
-
-#ifdef DEBUG
-  wifiManager.setDebugOutput(true);
-#endif
   wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
   wifiManager.setAPCallback(configModeCallback);
 
@@ -428,7 +430,7 @@ void performOncePerSecondProcessing() {
 // ************************************************************
 void performOncePerMinuteProcessing() {
   debugMsg("---> OncePerMinuteProcessing");
-  
+
   debugMsg("nu: " + String(nextUpdateFromServer));
 
   if (!ntpTimeValid()) {
@@ -472,9 +474,12 @@ void setLeds()
     secsDelta = 1000 - (nowMillis - lastCheckMillis);
   }
 
+  // Fixed backlight dim setting
+  float fixedDim = (float) backlightDimFactor / (float) 100;
+  
   // calculate the PWM factor, goes between minDim% and 100%
-  float dimFactor = (float) digitOffCount / (float) DIGIT_DISPLAY_OFF;
-
+  float dimFactor = (float) digitOffCount / (float) DIGIT_DISPLAY_OFF * fixedDim;
+  
   // Calculate the brightness factor based on the "pulse"
   float pwmFactor = (float) secsDelta / (float) 1000.0;
 
@@ -533,20 +538,20 @@ void setLeds()
     // RGB Backlight PWM led output
     switch (backlightMode) {
       case BACKLIGHT_FIXED:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, 1),
-                    getLEDAdjusted(rgb_backlight_curve[grnCnl], 1, 1),
-                    getLEDAdjusted(rgb_backlight_curve[bluCnl], 1, 1));
+        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, fixedDim),
+                    getLEDAdjusted(rgb_backlight_curve[grnCnl], 1, fixedDim),
+                    getLEDAdjusted(rgb_backlight_curve[bluCnl], 1, fixedDim));
         break;
       case BACKLIGHT_PULSE:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], pwmFactor, 1),
-                    getLEDAdjusted(rgb_backlight_curve[grnCnl], pwmFactor, 1),
-                    getLEDAdjusted(rgb_backlight_curve[bluCnl], pwmFactor, 1));
+        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], pwmFactor, fixedDim),
+                    getLEDAdjusted(rgb_backlight_curve[grnCnl], pwmFactor, fixedDim),
+                    getLEDAdjusted(rgb_backlight_curve[bluCnl], pwmFactor, fixedDim));
         break;
       case BACKLIGHT_CYCLE:
         cycleColours3(colors);
-        setAllLEDs( getLEDAdjusted(colors[0], 1, 1),
-                    getLEDAdjusted(colors[1], 1, 1),
-                    getLEDAdjusted(colors[2], 1, 1));
+        setAllLEDs( getLEDAdjusted(colors[0], 1, fixedDim),
+                    getLEDAdjusted(colors[1], 1, fixedDim),
+                    getLEDAdjusted(colors[2], 1, fixedDim));
         break;
       case BACKLIGHT_FIXED_DIM:
         setAllLEDs( getLEDAdjusted(rgb_backlight_curve[redCnl], 1, dimFactor),
@@ -566,9 +571,9 @@ void setLeds()
         break;
       case BACKLIGHT_COLOUR_TIME:
         for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, 1);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, 1);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, 1);
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, fixedDim);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, fixedDim);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, fixedDim);
         }
         outputLEDBuffer();
         break;
@@ -1615,10 +1620,10 @@ void loadDisplayConfigValue() {
 // DIGIT_DISPLAY_COUNT times for each digit, with no delays.
 // This is the heart of the display processing!
 // ************************************************************
-void outputDisplay()
-{
+void outputDisplay() {
   int digitOnTime;
   int digitOffTime;
+  int ledsOffTime;
   int digitSwitchTime;
   float digitSwitchTimeFloat;
   int tmpDispType;
@@ -1739,11 +1744,17 @@ void outputDisplay()
         currNumberArray[i] = NumberArray[i];
       }
 
+    // LEDs off will usually come before the digits off, or be the same 
+    ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
+
     // Main display loop - everything up to now was preparation
     for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
+      if (timer == ledsOffTime) {
+        ledsOff();
+      }
+      
       if (timer == digitOffTime) {
         digitOff(i, NumberArray[i]);
-        ledsOff();
         doYield();
       } else if (timer == digitOnTime) {
         digitOn(i, currNumberArray[i]);
@@ -2110,9 +2121,9 @@ void incYears() {
 // ************************************************************
 void setTimeFromServer(String timeString) {
   int intValues[6];
-  grabInts(timeString, &intValues[0], ",");  
+  grabInts(timeString, &intValues[0], ",");
   setTime(intValues[SYNC_HOURS], intValues[SYNC_MINS], intValues[SYNC_SECS], intValues[SYNC_DAY], intValues[SYNC_MONTH], intValues[SYNC_YEAR]);
-  debugMsg("Set internal time to NTP time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));  
+  debugMsg("Set internal time to NTP time: " + String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second()));
 }
 
 
@@ -2155,7 +2166,7 @@ boolean checkBlanking() {
 // ************************************************************
 String getPIRStateDisplay() {
   float lastMotionDetection = (nowMillis - pirLastSeen) / 1000.0;
-  
+
   String part3 = " ago";
   if (blanked) {
     part3 = " ago (blanked)";
@@ -2234,9 +2245,9 @@ void randomRGBFlash(int delayVal) {
 }
 
 /**
- * Set the diagnostic LED colour:
- * stepNumber 0..5
- * state: 0 = red, 1 = orange, 2 = green, 3 = blue
+   Set the diagnostic LED colour:
+   stepNumber 0..5
+   state: 0 = red, 1 = orange, 2 = green, 3 = blue
 */
 void setDiagnosticLED(byte stepNumber, byte state) {
   for (int i = 0 ; i < DIGIT_COUNT ; i++) {
@@ -2492,14 +2503,23 @@ boolean getConfigFromSpiffs() {
           ledMode = json["ledMode"];
           debugMsg("Loaded ledMode: " + String(ledMode));
 
-          webAuthentication = json["webAuthentication"].as<bool>();
+          boolean webAuthentication = json["webAuthentication"].as<bool>();
           debugMsg("Loaded webAuthentication: " + String(webAuthentication));
+          setWebAuthentication(webAuthentication);
 
-          webUsername = json["webUsername"].as<String>();
-          debugMsg("Loaded webUsername: " + webUsername);
+          String webUserName = json["webUsername"].as<String>();
+          debugMsg("Loaded webUsername: " + webUserName);
+          setWebUserName(webUserName);
 
-          webPassword = json["webPassword"].as<String>();
+          String webPassword = json["webPassword"].as<String>();
           debugMsg("Loaded webPassword: " + webPassword);
+          setWebPassword(webPassword);
+
+          separatorDimFactor = json["separatorDimFactor"];
+          debugMsg("Loaded separatorDimFactor: " + String(separatorDimFactor));
+
+          backlightDimFactor = json["backlightDimFactor"];
+          debugMsg("Loaded backlightDimFactor: " + String(backlightDimFactor));
 
           loaded = true;
         } else {
@@ -2554,9 +2574,11 @@ void saveConfigToSpiffs() {
     json["usePIRPullup"] = usePIRPullup;
     json["testMode"] = testMode;
     json["ledMode"] = ledMode;
-    json["webAuthentication"] = webAuthentication;
-    json["webUsername"] = webUsername;
-    json["webPassword"] = webPassword;
+    json["webAuthentication"] = getWebAuthentication();
+    json["webUsername"] = getWebUserName();
+    json["webPassword"] = getWebPassword();
+    json["separatorDimFactor"] = separatorDimFactor;
+    json["backlightDimFactor"] = backlightDimFactor;
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -2689,9 +2711,11 @@ void factoryReset() {
   usePIRPullup = USE_PIR_PULLUP_DEFAULT;
   ledMode = LED_BLINK_DEFAULT;
   testMode = true;
-  webAuthentication = WEB_AUTH_DEFAULT;
-  webUsername = WEB_USERNAME_DEFAULT;
-  webPassword = WEB_PASSWORD_DEFAULT;
+  setWebAuthentication(WEB_AUTH_DEFAULT);
+  setWebUserName(WEB_USERNAME_DEFAULT);
+  setWebPassword(WEB_PASSWORD_DEFAULT);
+  separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
+  backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
 
   saveConfigToSpiffs();
 }
@@ -2701,6 +2725,16 @@ void factoryReset() {
 //*                                Page Handlers                                   *
 //**********************************************************************************
 //**********************************************************************************
+
+void saveToSpiffsIfChanged(boolean changed) {
+  if (changed) {
+    debugMsg("Config options changed, saving them");
+    saveConfigToSpiffs();
+
+    // Save the stats while we are at it
+    saveStatsToSpiffs();
+  }
+}
 
 // ************************************************************
 // Summary page
@@ -2821,56 +2855,14 @@ void timeServerPageHandler() {
 
   boolean changed = false;
 
-  if (server.hasArg("ntppool")) {
-    debugMsg("Got NTP Pool param: " + server.arg("ntppool"));
-    String newNTPPool = server.arg("ntpupdate");
-    if (newNTPPool != ntpPool) {
-      if ((newNTPPool.length() < 7) || (newNTPPool.length() > 64)) {
-        debugMsg("Got a bad URL for the NTP pool, resetting");
-      } else {
-        changed = true;
-        ntpPool = newNTPPool;
-        debugMsg("-> Set NTP Pool: " + String(ntpPool));
-      }
-    }
+  checkServerArgString("ntppool", "NTP Pool", changed, ntpPool);
+  checkServerArgInt("ntpupdate", "NTP update interval", changed, ntpUpdateInterval);
+  checkServerArgString("tzs", "Time Zone String", changed, tzs);
+  if (String(getenv("TZ")) != tzs) {
+    debugMsg("Setting TZ ENV: " + tzs);
+    setenv("TZ", tzs.c_str(), 1);
   }
-
-  if (server.hasArg("ntpupdate")) {
-    debugMsg("Got NTP update interval param: " + server.arg("ntpupdate"));
-    unsigned long newNTPUpdateInterval = atoi(server.arg("ntpupdate").c_str());
-    if (newNTPUpdateInterval != ntpUpdateInterval) {
-      changed = true;
-      ntpUpdateInterval = newNTPUpdateInterval;
-      nextUpdateFromServer = ntpUpdateInterval;
-      debugMsg("-> Set NTP update interval: " + String(ntpUpdateInterval));
-    }
-  }
-
-  if (server.hasArg("tzs")) {
-    debugMsg("Got Time Zone String: " + server.arg("tzs"));
-    String newTZS = server.arg("tzs");
-    if (newTZS != tzs) {
-      if ((newTZS.length() < 7) || (newTZS.length() > 64)) {
-        debugMsg("Got a bad TZS, ignoring");
-      } else {
-        changed = true;
-        tzs = newTZS;
-        setenv("TZ", tzs.c_str(), 1);
-        nextUpdateFromServer = 0;
-        debugMsg("-> Set Time Zone String: " + String(tzs));
-      }
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-  // Save the options
-  if (changed) {
-    debugMsg("Config options changed, saving them");
-    saveConfigToSpiffs();
-
-    // Save the stats while we are at it
-    saveStatsToSpiffs();
-  }
+  saveToSpiffsIfChanged(changed);
 
   // -----------------------------------------------------------------------------
 
@@ -2880,6 +2872,7 @@ void timeServerPageHandler() {
   // form header
   response_message += getFormHead("Select time server");
 
+  debugMsg("ntpPool is: " + ntpPool);
   response_message += getTextInputWide("NTP Pool", "ntppool", ntpPool, false);
   response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpUpdateInterval, false);
   response_message += getTextInputWide("Time Zone String", "tzs", tzs, false);
@@ -2931,357 +2924,43 @@ void clockConfigPageHandler() {
 
   boolean changed = false;
 
-  if (server.hasArg("12h24hMode"))
-  {
-    debugMsg("Got 24h mode param: " + server.arg("12h24hMode"));
-    if ((server.arg("12h24hMode") == "24h") && (hourMode)) {
-      debugMsg("-> Set 24h mode");
-      changed = true;
-      hourMode = false;
-    }
-
-    if ((server.arg("12h24hMode") == "12h") && (!hourMode)) {
-      debugMsg("-> Set 12h mode");
-      changed = true;
-      hourMode = true;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("blankLeading"))
-  {
-    debugMsg("Got blankLeading param: " + server.arg("blankLeading"));
-    if ((server.arg("blankLeading") == "blank") && (!blankLeading)) {
-      debugMsg("-> Set blank leading zero");
-      changed = true;
-      blankLeading = true;
-    }
-
-    if ((server.arg("blankLeading") == "show") && (blankLeading)) {
-      debugMsg("-> Set show leading zero");
-      changed = true;
-      blankLeading = false;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("useScrollback"))
-  {
-    debugMsg("Got useScrollback param: " + server.arg("useScrollback"));
-    if ((server.arg("useScrollback") == "on") && (!scrollback)) {
-      debugMsg("-> Set scrollback on");
-      changed = true;
-      scrollback = true;
-    }
-
-    if ((server.arg("useScrollback") == "off") && (scrollback)) {
-      debugMsg("-> Set scrollback off");
-      changed = true;
-      scrollback = false;
-    }
-  }
+  checkServerArgBoolean("12h24hMode", "12/24h mode", "12h", "24h", changed, hourMode);
+  checkServerArgBoolean("blankLeading", "Leading zero", "blank", "show", changed, blankLeading);
+  checkServerArgBoolean("scrollback", "Use scrollback", "on", "off", changed, scrollback);
+  checkServerArgBoolean("fade", "Use fade", "on", "off", changed, fade);
+  checkServerArgBoolean("useLDR", "Use LDR", "on", "off", changed, useLDR);
+  checkServerArgByte("dateFormat", "dateFormat", changed, dateFormat);
+  checkServerArgByte("dayBlanking", "dayBlanking", changed, dayBlanking);
+  checkServerArgByte("blankHourStart", "blankHourStart", changed, blankHourStart);
+  checkServerArgByte("blankHourEnd", "blankHourEnd", changed, blankHourEnd);
+  checkServerArgInt("fadeSteps", "fadeSteps", changed, fadeSteps);
+  checkServerArgInt("scrollSteps", "scrollSteps", changed, scrollSteps);
+  checkServerArgByte("backlightMode", "backlightMode", changed, backlightMode);
+  checkServerArgByte("redCnl", "redCnl", changed, redCnl);
+  checkServerArgByte("grnCnl", "grnCnl", changed, grnCnl);
+  checkServerArgByte("bluCnl", "bluCnl", changed, bluCnl);
+  checkServerArgByte("backlightDimFactor", "backlightDimFactor", changed, backlightDimFactor);
+  checkServerArgByte("cycleSpeed", "cycleSpeed", changed, cycleSpeed);
+  checkServerArgByte("blankMode", "blankMode", changed, blankMode);
+  checkServerArgByte("slotsMode", "slotsMode", changed, slotsMode);
+  checkServerArgInt("pirTimeout", "pirTimeout", changed, pirTimeout);
+  checkServerArgBoolean("usePIRPullup", "Use PIR pullup", "on", "off", changed, usePIRPullup);
+  checkServerArgInt("minDim", "minDim", changed, minDim);
+  checkServerArgByte("ledMode", "ledMode", changed, ledMode);
+  checkServerArgByte("separatorDimFactor", "separatorDimFactor", changed, separatorDimFactor);
+  boolean localWebAuth = getWebAuthentication();
+  String localWebUserName = getWebUserName();
+  String localWebPassword = getWebPassword();
+  checkServerArgBoolean("webAuthentication", "Web Authentication", "on", "off", changed, localWebAuth);
+  checkServerArgString("webUsername", "webUsername", changed, localWebUserName);
+  checkServerArgString("webPassword", "webPassword", changed, localWebPassword);
+  setWebAuthentication(localWebAuth);
+  setWebUserName(localWebUserName);
+  setWebPassword(localWebPassword);
+  checkServerArgByte("separatorDimFactor", "separatorDimFactor", changed, separatorDimFactor);
+  saveToSpiffsIfChanged(changed);
 
   // -----------------------------------------------------------------------------
-
-  if (server.hasArg("fade"))
-  {
-    debugMsg("Got fade param: " + server.arg("fade"));
-    if ((server.arg("fade") == "on") && (!fade)) {
-      debugMsg("-> Set fade on");
-      changed = true;
-      fade = true;
-    }
-
-    if ((server.arg("fade") == "off") && (fade)) {
-      debugMsg("-> Set fade off");
-      changed = true;
-      fade = false;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("useLDR"))
-  {
-    debugMsg("Got useLDR param: " + server.arg("useLDR"));
-    if ((server.arg("useLDR") == "on") && (!useLDR)) {
-      debugMsg("-> Set useLDR on");
-      changed = true;
-      useLDR = true;
-    }
-
-    if ((server.arg("useLDR") == "off") && (useLDR)) {
-      debugMsg("-> Set useLDR off");
-      changed = true;
-      useLDR = false;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("dateFormat")) {
-    debugMsg("Got dateFormat param: " + server.arg("dateFormat"));
-    byte newDateFormat = atoi(server.arg("dateFormat").c_str());
-    if (newDateFormat != dateFormat) {
-      changed = true;
-      dateFormat = newDateFormat;
-      debugMsg("-> Set dateFormat: " + String(newDateFormat));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("dayBlanking")) {
-    debugMsg("Got dayBlanking param: " + server.arg("dayBlanking"));
-    byte newDayBlanking = atoi(server.arg("dayBlanking").c_str());
-    if (newDayBlanking != dayBlanking) {
-      changed = true;
-      dayBlanking = newDayBlanking;
-      debugMsg("-> Set dayBlanking: " + String(newDayBlanking));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("blankHourStart")) {
-    debugMsg("Got blankHourStart param: " + server.arg("blankHourStart"));
-    byte newBlankFrom = atoi(server.arg("blankHourStart").c_str());
-    if (newBlankFrom != blankHourStart) {
-      changed = true;
-      blankHourStart = newBlankFrom;
-      debugMsg("-> Set blankHourStart: " + String(newBlankFrom));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("blankHourEnd")) {
-    debugMsg("Got blankHourEnd param: " + server.arg("blankHourEnd"));
-    byte newBlankTo = atoi(server.arg("blankHourEnd").c_str());
-    if (newBlankTo != blankHourEnd) {
-      changed = true;
-      blankHourEnd = newBlankTo;
-      debugMsg("-> Set blankHourEnd: " + String(newBlankTo));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("fadeSteps")) {
-    debugMsg("Got fadeSteps param: " + server.arg("fadeSteps"));
-    byte newFadeSteps = atoi(server.arg("fadeSteps").c_str());
-    if (newFadeSteps != fadeSteps) {
-      changed = true;
-      fadeSteps = newFadeSteps;
-      debugMsg("-> Set fadeSteps: " + String(newFadeSteps));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("scrollSteps")) {
-    debugMsg("Got scrollSteps param: " + server.arg("scrollSteps"));
-    byte newScrollSteps = atoi(server.arg("scrollSteps").c_str());
-    if (newScrollSteps != scrollSteps) {
-      changed = true;
-      scrollSteps = newScrollSteps;
-      debugMsg("-> Set fadeSteps: " + String(newScrollSteps));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("backLight")) {
-    debugMsg("Got backLight param: " + server.arg("backLight"));
-    byte newBacklight = atoi(server.arg("backLight").c_str());
-    if (newBacklight != backlightMode) {
-      changed = true;
-      backlightMode = newBacklight;
-      debugMsg("-> Set backLight: " + String(newBacklight));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("redCnl")) {
-    debugMsg("Got redCnl param: " + server.arg("redCnl"));
-    byte newRedCnl = atoi(server.arg("redCnl").c_str());
-    if (newRedCnl != redCnl) {
-      changed = true;
-      redCnl = newRedCnl;
-      debugMsg("-> Set redCnl: " + String(newRedCnl));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("grnCnl")) {
-    debugMsg("Got grnCnl param: " + server.arg("grnCnl"));
-    byte newGreenCnl = atoi(server.arg("grnCnl").c_str());
-    if (newGreenCnl != grnCnl) {
-      changed = true;
-      grnCnl = newGreenCnl;
-      debugMsg("-> Set grnCnl: " + String(newGreenCnl));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("bluCnl")) {
-    debugMsg("Got bluCnl param: " + server.arg("bluCnl"));
-    byte newBlueCnl = atoi(server.arg("bluCnl").c_str());
-    if (newBlueCnl != bluCnl) {
-      changed = true;
-      bluCnl = newBlueCnl;
-      debugMsg("-> Set bluCnl: " + String(newBlueCnl));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("cycleSpeed")) {
-    debugMsg("Got cycleSpeed param: " + server.arg("cycleSpeed"));
-    byte newCycleSpeed = atoi(server.arg("cycleSpeed").c_str());
-    if (newCycleSpeed != cycleSpeed) {
-      changed = true;
-      cycleSpeed = newCycleSpeed;
-      debugMsg("-> Set cycleSpeed: " + String(newCycleSpeed));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("blankMode")) {
-    debugMsg("Got blankMode param: " + server.arg("blankMode"));
-    byte newBlankMode = atoi(server.arg("blankMode").c_str());
-    if (newBlankMode != blankMode) {
-      changed = true;
-      blankMode = newBlankMode;
-      debugMsg("-> Set blankMode: " + String(newBlankMode));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("slotsMode")) {
-    debugMsg("Got slotsMode param: " + server.arg("slotsMode"));
-    byte newSlotsMode = atoi(server.arg("slotsMode").c_str());
-    if (newSlotsMode != slotsMode) {
-      changed = true;
-      slotsMode = newSlotsMode;
-      debugMsg("-> Set slotsMode: " + String(newSlotsMode));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("pirTimeout")) {
-    debugMsg("Got pirTimeout param: " + server.arg("pirTimeout"));
-    int newPirTimeOut = atoi(server.arg("pirTimeout").c_str());
-    if (newPirTimeOut != pirTimeout) {
-      changed = true;
-      pirTimeout = newPirTimeOut;
-      debugMsg("-> Set pirTimeout: " + String(newPirTimeOut));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("usePirPullup"))
-  {
-    debugMsg("Got usePirPullup param: " + server.arg("usePirPullup"));
-    if ((server.arg("usePirPullup") == "on") && (!usePIRPullup)) {
-      changed = true;
-      debugMsg("-> Set usePirPullup on");
-      usePIRPullup = true;
-    }
-
-    if ((server.arg("usePirPullup") == "off") && (usePIRPullup)) {
-      changed = true;
-      debugMsg("-> Set usePirPullup off");
-      usePIRPullup = false;
-    }
-
-    setPIRPullup(usePIRPullup);
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("minDim")) {
-    debugMsg("Got minDim param: " + server.arg("minDim"));
-    int newMinDim = atoi(server.arg("minDim").c_str());
-    if (newMinDim != minDim) {
-      changed = true;
-      minDim = newMinDim;
-      debugMsg("-> Set minDim: " + String(newMinDim));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("ledMode")) {
-    debugMsg("Got ledMode param: " + server.arg("ledMode"));
-    byte newLedMode = atoi(server.arg("ledMode").c_str());
-    if (newLedMode != ledMode) {
-      changed = true;
-      ledMode = newLedMode;
-      debugMsg("-> Set ledMode: " + String(newLedMode));
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("authenticate")) {
-    debugMsg("Got Authenticate param: " + server.arg("authenticate"));
-    if ((server.arg("authenticate") == "Off") && (webAuthentication)) {
-      debugMsg("-> Set authentication off");
-      changed = true;
-      webAuthentication = false;
-    }
-
-    if ((server.arg("authenticate") == "On") && (!webAuthentication)) {
-      debugMsg("-> Set authentication on");
-      changed = true;
-      webAuthentication = true;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("username"))
-  {
-    String newUsername = server.arg("username");
-    if (webUsername != newUsername) {
-      webUsername = newUsername;
-      debugMsg("-> Username = " + webUsername);
-      changed = true;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-
-  if (server.hasArg("password"))
-  {
-    String newPassword = server.arg("password");
-    if (webPassword != newPassword) {
-      webPassword = newPassword;
-      debugMsg("-> Password = " + webPassword);
-      changed = true;
-    }
-  }
-
-  // -----------------------------------------------------------------------------
-  // Save the options
-  if (changed) {
-    debugMsg("Config options changed, saving them");
-    saveConfigToSpiffs();
-
-    // Save the stats while we are at it
-    saveStatsToSpiffs();
-  }
-
   String response_message = getHTMLHead(getIsConnected());
   response_message += getNavBar();
 
@@ -3313,11 +2992,11 @@ void clockConfigPageHandler() {
   // Scrollback
   response_message += getRadioGroupHeader("Scrollback effect:");
   if (scrollback) {
-    response_message += getRadioButton("useScrollback", "On", "on", true);
-    response_message += getRadioButton("useScrollback", "Off", "off", false);
+    response_message += getRadioButton("scrollback", "On", "on", true);
+    response_message += getRadioButton("scrollback", "Off", "off", false);
   } else {
-    response_message += getRadioButton("useScrollback", "On", "on", false);
-    response_message += getRadioButton("useScrollback", "Off", "off", true);
+    response_message += getRadioButton("scrollback", "On", "on", false);
+    response_message += getRadioButton("scrollback", "Off", "off", true);
   }
   response_message += getRadioGroupFooter();
 
@@ -3384,7 +3063,7 @@ void clockConfigPageHandler() {
   response_message += getNumberInput("Blank to:", "blankHourEnd", 0, 23, blankHourEnd, hoursDisabled);
 
   // Back light
-  response_message += getDropDownHeader("Back light:", "backLight", true);
+  response_message += getDropDownHeader("Back light:", "backlightMode", true);
   response_message += getDropDownOption("0", "Fixed RGB backlight, no dimming", (backlightMode == 0));
   response_message += getDropDownOption("1", "Pulsing RGB backlight, no dimming", (backlightMode == 1));
   response_message += getDropDownOption("2", "Cycling RGB backlight, no dimming", (backlightMode == 2));
@@ -3401,6 +3080,9 @@ void clockConfigPageHandler() {
   response_message += getNumberInput("Red intensity:", "redCnl", 0, 15, redCnl, !activeLEDs);
   response_message += getNumberInput("Green intensity:", "grnCnl", 0, 15, grnCnl, !activeLEDs);
   response_message += getNumberInput("Blue intensity:", "bluCnl", 0, 15, bluCnl, !activeLEDs);
+
+  // Separator dim factor
+  response_message += getNumberInput("Backlight Dim:", "backlightDimFactor", BACKLIGHT_DIM_FACTOR_MIN, BACKLIGHT_DIM_FACTOR_MAX, backlightDimFactor, false);
 
   boolean activeCycle = (backlightMode == 2) || (backlightMode == 5);
 
@@ -3421,17 +3103,20 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("3", "Double flash", (ledMode == LED_BLINK_DBL));
   response_message += getDropDownFooter();
 
+  // Separator dim factor
+  response_message += getNumberInput("Separator Dim:", "separatorDimFactor", SEPARATOR_DIM_FACTOR_MIN, SEPARATOR_DIM_FACTOR_MAX, separatorDimFactor, false);
+
   // PIR timeout
   response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);
 
   // PIR pullup
   response_message += getRadioGroupHeader("Use PIR pullup:");
   if (usePIRPullup) {
-    response_message += getRadioButton("usePirPullup", "On", "on", true);
-    response_message += getRadioButton("usePirPullup", "Off", "off", false);
+    response_message += getRadioButton("usePIRPullup", "On", "on", true);
+    response_message += getRadioButton("usePIRPullup", "Off", "off", false);
   } else {
-    response_message += getRadioButton("usePirPullup", "On", "on", false);
-    response_message += getRadioButton("usePirPullup", "Off", "off", true);
+    response_message += getRadioButton("usePIRPullup", "On", "on", false);
+    response_message += getRadioButton("usePIRPullup", "Off", "off", true);
   }
   response_message += getRadioGroupFooter();
 
@@ -3439,18 +3124,18 @@ void clockConfigPageHandler() {
   response_message += getNumberInput("Min Dim:", "minDim", MIN_DIM_MIN, MIN_DIM_MAX, minDim, false);
 
   // web auth mode
-  response_message += getRadioGroupHeader("Authentication:");
-  if (webAuthentication) {
-    response_message += getRadioButton("authenticate", " On", "On", true);
-    response_message += getRadioButton("authenticate", " Off", "Off", false);
+  response_message += getRadioGroupHeader("Web Authentication:");
+  if (getWebAuthentication()) {
+    response_message += getRadioButton("webAuthentication", " On", "on", true);
+    response_message += getRadioButton("webAuthentication", " Off", "off", false);
   } else {
-    response_message += getRadioButton("authenticate", " On", "On", false);
-    response_message += getRadioButton("authenticate", " Off", "Off", true);
+    response_message += getRadioButton("webAuthentication", " On", "on", false);
+    response_message += getRadioButton("webAuthentication", " Off", "off", true);
   }
   response_message += getRadioGroupFooter();
 
-  response_message += getTextInput("User Name", "username", webUsername, !webAuthentication);
-  response_message += getTextInput("Password", "password", webPassword, !webAuthentication);
+  response_message += getTextInput("User Name", "webUsername", getWebUserName(), !getWebAuthentication());
+  response_message += getTextInput("Password", "webPassword", getWebPassword(), !getWebAuthentication());
 
   // form footer
   response_message += getSubmitButton("Set");
@@ -3471,61 +3156,45 @@ void clockConfigPageHandler() {
 void setDisplayValuePageHandler() {
   String resultMessage;
   byte timeValue = 0xff;
-  boolean argsValid = false;
+  boolean valueValid = false;
+  boolean timeValid = false;
+  boolean formatValid = false;
 
-  if (server.hasArg("value"))
-  {
-    debugMsg("Got server arg value: " + server.arg("value"));
-    long valueToSend = atol(server.arg("value").c_str());
-    byte val1 = hex2bcd(valueToSend % 100);
-    valueToSend = valueToSend / 100;
-    byte val0 = hex2bcd(valueToSend % 100);
+  int valueToDisplay = 0;
+  int valueTime = 0;
+  int valueFormat = 0;
+  
+  checkServerArgInt("value", "value", valueValid, valueToDisplay);
+  checkServerArgInt("time", "time", timeValid, valueTime);
+  checkServerArgInt("format", "format", formatValid, valueFormat);
 
+  if (valueValid) {
+    byte val1 = hex2bcd(valueTime % 100);
+    valueTime = valueTime / 100;
+    byte val0 = hex2bcd(valueTime % 100);
     valueToShow[0] = val0;
     valueToShow[1] = val1;
-
-    resultMessage += "Set Value  ";
-    argsValid = true;
+  }
+  
+  if (timeValid) {
+    if (valueTime > 255)
+      valueTime = 255;
   }
 
-  if (server.hasArg("time"))
-  {
-    debugMsg("Got time");
-    debugMsg(server.arg("time"));
-    unsigned int timeToSend = atoi(server.arg("time").c_str());
-    if (timeToSend > 255)
-    {
-      valueDisplayTime = 0xff;
-    } else {
-      valueDisplayTime = timeToSend;
-      resultMessage += "Set Time  ";
-    }
-  };
-
-  if (server.hasArg("format"))
-  {
-    debugMsg("Got format");
-    debugMsg(server.arg("format"));
-
-    long formatToSend = atol(server.arg("format").c_str());
-    byte val2 = hex2bcd(formatToSend % 100);
-    formatToSend = formatToSend / 100;
-    byte val1 = hex2bcd(formatToSend % 100);
-    formatToSend = formatToSend / 100;
-    byte val0 = hex2bcd(formatToSend % 100);
+  if (formatValid) {
+    byte val1 = hex2bcd(valueFormat % 100);
+    valueFormat = valueFormat / 100;
+    byte val0 = hex2bcd(valueFormat % 100);
     valueDisplayType[0] = val0;
     valueDisplayType[1] = val1;
-    valueDisplayType[2] = val2;
-
-    resultMessage += "Set Format  ";
-  };
+  }
 
   String response_message = getHTMLHead(getIsConnected());
   response_message += getNavBar();
 
   response_message += "<div class=\"container\" role=\"main\"><h3 class=\"sub-header\">Show a value on the clock</h3>";
 
-  if (argsValid) {
+  if (valueValid) {
     response_message += "<div class=\"alert alert-success fade in\"><strong>";
     response_message += resultMessage;
     response_message += "</strong></div></div>";
@@ -3604,7 +3273,7 @@ void factoryResetPageHandler() {
 
   server.sendHeader("Location", "/utility", true);
   server.send(302, "text/plain", "");
-  
+
   debugMsg("Factory Reset page out");
 }
 
@@ -3690,15 +3359,15 @@ void onPacketReceived_cb(AsyncUDPPacket packet) {
   debugMsgCont("UDP Packet Type: ");
   debugMsg(packet.isBroadcast() ? "Broadcast" : packet.isMulticast() ? "Multicast" : "Unicast");
   debugMsgCont("From: ");
-  debugMsgCont(packet.remoteIP());
+  debugMsgCont(formatIPAsString(packet.remoteIP()));
   debugMsgCont(":");
-  debugMsg(packet.remotePort());
+  debugMsg(formatIPAsString(packet.remotePort()));
   debugMsgCont("To: ");
-  debugMsgCont(packet.localIP());
+  debugMsgCont(formatIPAsString(packet.localIP()));
   debugMsgCont(":");
-  debugMsg(packet.localPort());
+  debugMsg(String(packet.localPort()));
   debugMsgCont("Length: ");
-  debugMsg(packet.length());
+  debugMsg(String(packet.length()));
 
   if (packet.length() != 48) {
     debugMsg("Received data, but got invalid length: " + String(packet.length()));
@@ -3797,56 +3466,56 @@ void setServerPageHandlers() {
   server.on("/", rootPageHandler);
 
   server.on("/time", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return timeServerPageHandler();
   });
 
   server.on("/reset", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return resetPageHandler();
   });
 
   server.on("/resetwifi", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return resetWiFiPageHandler();
   });
 
   server.on("/ntpupdate", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return ntpUpdatePageHandler();
   });
 
   server.on("/factoryreset", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return factoryResetPageHandler();
   });
 
   server.on("/clockconfig", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return clockConfigPageHandler();
   });
 
   server.on("/setvalue", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return setDisplayValuePageHandler();
   });
 
   server.on("/utility", []() {
-    if (webAuthentication && (!server.authenticate(webUsername.c_str(), webPassword.c_str()))) {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return utilityPageHandler();

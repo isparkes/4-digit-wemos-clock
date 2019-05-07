@@ -1,5 +1,7 @@
 #include "ClockUtils.h"
 
+boolean useDebug = false;
+
 String formatIPAsString(IPAddress ip) {
   return String(ip[0]) + '.' + String(ip[1]) + '.' + String(ip[2]) + '.' + String(ip[3]);
 }
@@ -294,4 +296,25 @@ String getSubmitButton(String buttonText) {
   result += buttonText;
   result += "\"></div></div>";
   return result;
+}
+
+// ----------------------------------------------------------------------------------------------------
+// ------------------------------------------- HTML functions -----------------------------------------
+// ----------------------------------------------------------------------------------------------------
+
+void setupDebug(boolean setUseDebug) {
+  useDebug = setUseDebug;
+  if (useDebug) Serial.begin(115200);
+}
+
+void debugMsg(String message) {
+  if (useDebug) {
+    Serial.println(message); 
+  }
+}
+
+void debugMsgCont(String message) {
+  if (useDebug) {
+    Serial.print(message); 
+  }
 }

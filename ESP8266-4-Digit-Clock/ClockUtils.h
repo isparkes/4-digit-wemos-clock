@@ -8,17 +8,18 @@
 #include <FS.h>
 #include <Wire.h>
 #include <ESP8266HTTPClient.h>
+#include "HtmlServer.h"
 
 /*
  * A collection of utility functions
  */
 
- String getBool(bool value);
- String formatIPAsString(IPAddress ip);
- int getIntValue(String data, char separator, int index);
- String getValue(String data, char separator, int index);
- void grabInts(String s, int *dest, String sep);
- unsigned char hex2bcd (unsigned char x);
+String getBool(bool value);
+String formatIPAsString(IPAddress ip);
+int getIntValue(String data, char separator, int index);
+String getValue(String data, char separator, int index);
+void grabInts(String s, int *dest, String sep);
+unsigned char hex2bcd (unsigned char x);
 
 // ----------------------------------------------------------------------------------------------------
 // ------------------------------------------- HTML functions -----------------------------------------
@@ -46,5 +47,13 @@ String getTextInput(String heading, String input_name, String value, boolean dis
 String getTextInputWide(String heading, String input_name, String value, boolean disabled);
 String getSubmitButton(String buttonText);
 String secsToReadableString(long secsValue);
+
+// ----------------------------------------------------------------------------------------------------
+// --------------------------------------------- Debugging --------------------------------------------
+// ----------------------------------------------------------------------------------------------------
+void setupDebug(boolean setUseDebug);
+void debugMsg(String message);
+void debugMsgCont(String message);
+
 
 #endif

@@ -1,26 +1,15 @@
 #ifndef __ESP_GLOBALS_H__
 #define __ESP_GLOBALS_H__
 
+#include "HtmlServer.h"
 #include "DisplayDefs.h"
 #include "ClockDefs.h"
 #include "Transition.h"
 #include "ESP_DS1307.h"
 #include "ClockButton.h"
 
-#ifdef DEBUG
-#define debugMsg(x)  Serial.println (x)
-#define debugMsgCont(x)  Serial.print (x)
-#define setupDebug()  Serial.begin(115200)
-#else
-#define debugMsg(x)
-#define debugMsgCont(x)
-#define setupDebug()
-#endif
-
 // ----------------------- Components ----------------------------
 
-ESP8266WebServer server(80);            // Config server on port 80
-ESP8266HTTPUpdateServer httpUpdater;    // ESP8266HTTPUpdateServer.h
 AsyncUDP udp;                           // ESPAsyncUDP.h
 Transition transition(500, 1000, 3000); // Scroll/Scramble (Transition.h)  
 DS1307 Clock;                           // RTC, uses Analogue pins A4 (SDA) and A5 (SCL)
@@ -41,7 +30,7 @@ String tzs = TIME_ZONE_STRING_DEFAULT;
 unsigned long lastUpdateFromServer = 0;
 signed long nextUpdateFromServer = 0;
 String lastTimeFromServer = "";
-unsigned int ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
+int ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
 unsigned long ntpStarted = 0;
 
 // ------------------ Display Variables ----------------
@@ -84,10 +73,12 @@ byte cycleCount = 0;
 byte cycleSpeed = CYCLE_SPEED_DEFAULT;
 boolean testMode = false;
 byte slotsMode = SLOTS_MODE_DEFAULT;
-unsigned long pirTimeout = PIR_TIMEOUT_DEFAULT;
+int pirTimeout = PIR_TIMEOUT_DEFAULT;
 boolean blankLeading = false;
 byte dateFormat = DATE_FORMAT_DEFAULT;
 byte ledMode = 0;       // Separator LED mode
+byte separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
+byte backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
 
 // ------------- Time management variables -------------
 
@@ -100,15 +91,6 @@ boolean triggeredThisSec = false;
 
 unsigned int tempDisplayModeDuration;      // time for the end of the temporary display
 int  tempDisplayMode;
-
-// ----------------------- Auth ------------------------
-
-#define WEB_USERNAME_DEFAULT "admin";
-#define WEB_PASSWORD_DEFAULT "setup";
-#define WEB_AUTH_DEFAULT true;
-boolean webAuthentication = WEB_AUTH_DEFAULT;
-String webUsername = WEB_USERNAME_DEFAULT;
-String webPassword = WEB_PASSWORD_DEFAULT;
 
 // ---------------- Backlight management ---------------
 
@@ -165,6 +147,5 @@ boolean led2State;
 // Strategy 3
 int changeSteps = 0;
 byte currentColour = 0;
-
 
 #endif
