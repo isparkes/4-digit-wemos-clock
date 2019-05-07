@@ -54,6 +54,7 @@ String secsToReadableString(long secsValue);
 void setupDebug(boolean setUseDebug);
 void debugMsg(String message);
 void debugMsgCont(String message);
-
+boolean getDebug();
+void toggleDebug();
 
 #endif

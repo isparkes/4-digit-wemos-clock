@@ -50,7 +50,7 @@
 #include "ESP_DS1307.h"
 #include "HtmlServer.h"
 
-#define DEBUG
+#define DEBUG_DEFAULT false
 
 //**********************************************************************************
 //**********************************************************************************
@@ -61,12 +61,10 @@ void setup()
 {
   WiFiManager wifiManager;
 
-#ifdef DEBUG
-  setupDebug(true);
+  setupDebug(DEBUG_DEFAULT);
   debugMsg("");
   debugMsg("--------------------- START ---------------------");
-  wifiManager.setDebugOutput(true);
-#endif
+  wifiManager.setDebugOutput(getDebug());
 
   // Set up the LED output
   leds.Begin();
@@ -81,7 +79,8 @@ void setup()
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
   delay(1000);
 
-  button1.checkButton(millis());
+  for (int i = 0; i < 25 ; i++) button1.checkButton(millis());
+  
   if (button1.isButtonPressedNow()) {
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
     factoryReset();
@@ -2521,6 +2520,10 @@ boolean getConfigFromSpiffs() {
           backlightDimFactor = json["backlightDimFactor"];
           debugMsg("Loaded backlightDimFactor: " + String(backlightDimFactor));
 
+          boolean debug = json["debug"].as<bool>();
+          debugMsg("Loaded debug: " + String(debug));
+          setupDebug(debug);
+
           loaded = true;
         } else {
           debugMsg("failed to load json config");
@@ -2579,6 +2582,7 @@ void saveConfigToSpiffs() {
     json["webPassword"] = getWebPassword();
     json["separatorDimFactor"] = separatorDimFactor;
     json["backlightDimFactor"] = backlightDimFactor;
+    json["debug"] = getDebug();
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -2716,6 +2720,7 @@ void factoryReset() {
   setWebPassword(WEB_PASSWORD_DEFAULT);
   separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
   backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
+  setupDebug(DEBUG_DEFAULT);
 
   saveConfigToSpiffs();
 }
@@ -2863,7 +2868,7 @@ void timeServerPageHandler() {
     setenv("TZ", tzs.c_str(), 1);
   }
   saveToSpiffsIfChanged(changed);
-
+  
   // -----------------------------------------------------------------------------
 
   String response_message = getHTMLHead(getIsConnected());
@@ -2872,7 +2877,6 @@ void timeServerPageHandler() {
   // form header
   response_message += getFormHead("Select time server");
 
-  debugMsg("ntpPool is: " + ntpPool);
   response_message += getTextInputWide("NTP Pool", "ntppool", ntpPool, false);
   response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpUpdateInterval, false);
   response_message += getTextInputWide("Time Zone String", "tzs", tzs, false);
@@ -3278,6 +3282,20 @@ void factoryResetPageHandler() {
 }
 
 // ************************************************************
+// Reset just the wifi
+// ************************************************************
+void debugPageHandler() {
+  debugMsg("Debug page in");
+
+  toggleDebug();
+  
+  server.sendHeader("Location", "/utility", true);
+  server.send(302, "text/plain", "");
+
+  debugMsg("Debug page out");
+}
+
+// ************************************************************
 // Called if requested page is not found
 // ************************************************************
 void handleNotFound() {
@@ -3519,6 +3537,13 @@ void setServerPageHandlers() {
       return server.requestAuthentication();
     }
     return utilityPageHandler();
+  });
+
+  server.on("/debug", []() {
+    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
+      return server.requestAuthentication();
+    }
+    return debugPageHandler();
   });
 
   server.on("/local.css",   localCSSHandler);

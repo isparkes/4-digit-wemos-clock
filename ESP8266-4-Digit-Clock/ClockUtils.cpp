@@ -307,6 +307,10 @@ void setupDebug(boolean setUseDebug) {
   if (useDebug) Serial.begin(115200);
 }
 
+boolean getDebug() {
+  return useDebug;
+}
+
 void debugMsg(String message) {
   if (useDebug) {
     Serial.println(message); 
@@ -317,4 +321,8 @@ void debugMsgCont(String message) {
   if (useDebug) {
     Serial.print(message); 
   }
+}
+
+void toggleDebug() {
+  setupDebug(!useDebug);
 }
