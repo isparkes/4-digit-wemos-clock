@@ -1,0 +1,12 @@
+"Id";"Designator";"Package";"Quantity";"Designation";"Supplier and ref";
+1;"N1,N2,N3,N4";"nixies-us-IN-2-DSUB-1mm1-pins";4;"IN-2";;;
+2;"R10,R1,R2,R3,R4,R12";"R-0207_2V";6;"1k";;;
+3;"OK4,OK1,OK2,OK3";"optocoupler-DIL04";4;"EL817C";;;
+4;"R11,R9";"R-Long";2;"4.7k";;;
+5;"J1,J2";"Header_MA10-1_narrow";2;"Conn_01x10";;;
+6;"Q2,Q1";"TO-92_inline_MPSA42";2;"MPSA42";;;
+7;"MH1,MH2,MH4,MH3";"MountingHole_3.2mm_M3";4;"MountingHole_3.2mm_M3";;;
+8;"NE2,NE1";"LED-5MM-Centred";2;"Lamp_Neon";;;
+9;"LDR1";"NEON-5MM-Centred";1;"R_PHOTO";;;
+10;"R7,R8,R6,R5";"R-Long";4;"3k";;;
+11;"JP1";"SOLDER-JUMPER_2-WAY";1;"Jumper_NC_Dual";;;
