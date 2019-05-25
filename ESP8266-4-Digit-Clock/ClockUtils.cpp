@@ -313,7 +313,8 @@ boolean getDebug() {
 
 void debugMsg(String message) {
   if (useDebug) {
-    Serial.println(message); 
+    Serial.println(message);
+    Serial.flush();
   }
 }
 

@@ -50,7 +50,7 @@
 #include "ESP_DS1307.h"
 #include "HtmlServer.h"
 
-#define DEBUG_DEFAULT false
+#define DEBUG_DEFAULT true
 
 //**********************************************************************************
 //**********************************************************************************
@@ -133,9 +133,7 @@ void setup()
     setDiagnosticLED(DIAGS_NTP, STATUS_RED);
   }
 
-  Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
-  debugMsg("I2C master started");
-
+  debugMsg("Starting HTTP server");
   setServerPageHandlers();
   server.begin();
   debugMsg("HTTP server started");
@@ -219,6 +217,9 @@ void setup()
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
 
+  Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
+  debugMsg("I2C master started");
+
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
@@ -237,10 +238,6 @@ void setup()
   // don't blank anything right now
   blanked = false;
   setTubesAndLEDSBlankMode();
-
-  // mark that we have done the EEPROM setup
-  testMode = false;
-  saveConfigToSpiffs();
 
   debugMsg("Exit startup in 1 second");
   getStatsFromSpiffs();
@@ -430,7 +427,7 @@ void performOncePerSecondProcessing() {
 void performOncePerMinuteProcessing() {
   debugMsg("---> OncePerMinuteProcessing");
 
-  debugMsg("nu: " + String(nextUpdateFromServer));
+  debugMsg("Next update: " + String(nextUpdateFromServer));
 
   if (!ntpTimeValid()) {
     getRTCTime(true);
@@ -2419,7 +2416,7 @@ boolean getConfigFromSpiffs() {
           debugMsg("Loaded NTP pool: " + ntpPool);
 
           ntpUpdateInterval = json["ntp_update_interval"].as<unsigned long>();
-          debugMsg("Loaded NTP update interval: " + ntpUpdateInterval);
+          debugMsg("Loaded NTP update interval: " + String(ntpUpdateInterval));
 
           tzs = json["time_zone_string"].as<String>();
           debugMsg("Loaded time zone string: " + tzs);
@@ -3358,9 +3355,9 @@ void getTimeFromTimeZoneServer() {
   buffer[3] = 0xEC;         // Peer Clock Precision
   // 8 bytes of zero for Root Delay & Root Dispersion
   buffer[12]  = 'X';        // "kiss code", see RFC5905
-  buffer[13]  = 'E';        // (codes starting with 'X' are not interpreted)
-  buffer[14]  = 'Z';
-  buffer[15]  = 'T';
+  buffer[13]  = 'W';        // (codes starting with 'X' are not interpreted)
+  buffer[14]  = 'N';
+  buffer[15]  = 'C';
 
   ntpStarted = millis();
   udp.connect(serverIP, 123); //NTP requests are to port 123
@@ -3379,7 +3376,7 @@ void onPacketReceived_cb(AsyncUDPPacket packet) {
   debugMsgCont("From: ");
   debugMsgCont(formatIPAsString(packet.remoteIP()));
   debugMsgCont(":");
-  debugMsg(formatIPAsString(packet.remotePort()));
+  debugMsg(String(packet.remotePort()));
   debugMsgCont("To: ");
   debugMsgCont(formatIPAsString(packet.localIP()));
   debugMsgCont(":");
@@ -3423,12 +3420,13 @@ void onPacketReceived_cb(AsyncUDPPacket packet) {
     uint32_t done = millis();
     debugMsg("success round trip " + String(done - ntpStarted) + " ms");
     unsigned long t = secsSince1900 - 2208988800UL;                     // Subtract 70 years to get seconds since 1970
-    uint16_t ms = fraction / 4294967UL;                                 // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
-    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms;  // Assume symmetric network latency and return when we think the whole second was.
+
+//    uint16_t ms = fraction / 4294967UL;                                 // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
+//    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms;  // Assume symmetric network latency and return when we think the whole second was.
 
     lastUpdateFromServer = done;
     nextUpdateFromServer = ntpUpdateInterval;
-    debugMsg("set nu: " + String(nextUpdateFromServer));
+    debugMsg("Set next update: " + String(nextUpdateFromServer));
 
     time_t ntpTime = t;
     const tm* tm = localtime(&ntpTime);
