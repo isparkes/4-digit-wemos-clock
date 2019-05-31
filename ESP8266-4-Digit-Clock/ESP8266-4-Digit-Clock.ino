@@ -662,8 +662,7 @@ void setNextMode(int displayMode) {
     case MODE_HOURS_SET: {
         if (ntpTimeValid()) {
           // skip past the time and date settings
-          nextMode += 6;
-          currentMode += 6;
+          setNewNextMode(MODE_12_24);
         }
         loadNumberArrayTime();
         highlight0and1();
@@ -725,12 +724,12 @@ void setNextMode(int displayMode) {
         break;
       }
     case MODE_HR_BLNK_START: {
-        if (dayBlanking < DAY_BLANKING_HOURS) {
+        if ((dayBlanking == DAY_BLANKING_NEVER) ||
+            (dayBlanking == DAY_BLANKING_WEEKEND) ||
+            (dayBlanking == DAY_BLANKING_WEEKDAY) ||
+            (dayBlanking == DAY_BLANKING_ALWAYS)) {
           // Skip past the start and end hour if the blanking mode says it is not relevant
-          nextMode++;
-          currentMode++;
-          nextMode++;
-          currentMode++;
+          setNewNextMode(MODE_USE_LDR);
         }
 
         loadNumberArrayConfInt(blankHourStart, displayMode);
@@ -783,38 +782,26 @@ void setNextMode(int displayMode) {
     case MODE_RED_CNL: {
         if ((backlightMode == BACKLIGHT_CYCLE) || (backlightMode == BACKLIGHT_CYCLE_DIM) || (backlightMode == BACKLIGHT_COLOUR_TIME) || (backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
           // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
+          setNewNextMode(MODE_CYCLE_SPEED);
         }
         loadNumberArrayConfInt(redCnl, displayMode);
         displayConfig();
         break;
       }
     case MODE_GRN_CNL: {
-        if ((backlightMode == BACKLIGHT_CYCLE) || (backlightMode == BACKLIGHT_CYCLE_DIM) || (backlightMode == BACKLIGHT_COLOUR_TIME) || (backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
-        }
         loadNumberArrayConfInt(grnCnl, displayMode);
         displayConfig();
         break;
       }
     case MODE_BLU_CNL: {
-        if ((backlightMode == BACKLIGHT_CYCLE) || (backlightMode == BACKLIGHT_CYCLE_DIM) || (backlightMode == BACKLIGHT_COLOUR_TIME) || (backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
-        }
         loadNumberArrayConfInt(bluCnl, displayMode);
         displayConfig();
         break;
       }
     case MODE_CYCLE_SPEED: {
-        if ((backlightMode == BACKLIGHT_CYCLE) || (backlightMode == BACKLIGHT_CYCLE_DIM) || (backlightMode == BACKLIGHT_COLOUR_TIME) || (backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
+        if ((backlightMode != BACKLIGHT_CYCLE) && (backlightMode != BACKLIGHT_CYCLE_DIM))  {
+          // Show only if we are in cycle mode
+          setNewNextMode(MODE_MIN_DIM_UP);
         }
         loadNumberArrayConfInt(cycleSpeed, displayMode);
         displayConfig();
@@ -1771,7 +1758,7 @@ void digitOn(byte digit, byte value) {
 }
 
 // ************************************************************
-// Turn the anodes off, but lave the cathode alone
+// Turn the anodes off, but leave the cathode alone
 // ************************************************************
 void digitOff(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf);
@@ -2283,6 +2270,14 @@ void setPIRPullup(boolean newState) {
     debugMsg("Resetting PIR pullup");
     pinMode(pirPin, INPUT);
   }
+}
+
+// ************************************************************
+// Jump to a new position in the menu - used to skip unused items
+// ************************************************************
+void setNewNextMode(int newNextMode) {
+  nextMode = newNextMode;
+  currentMode = newNextMode - 1;
 }
 
 //**********************************************************************************
