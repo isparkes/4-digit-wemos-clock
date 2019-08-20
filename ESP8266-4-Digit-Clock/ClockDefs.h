@@ -239,9 +239,6 @@
 #define RTC_I2C_ADDRESS                 0x68
 
 // -------------------------------------------------------------------------------
-#define MAX_WIFI_TIME                   5   // The number of minutes to wait before we fall back to RTC
-
-// -------------------------------------------------------------------------------
 #define DO_NOT_APPLY_LEAD_0_BLANK       false
 #define APPLY_LEAD_0_BLANK              true
 
