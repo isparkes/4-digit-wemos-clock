@@ -249,8 +249,6 @@ void setup()
   debugMsg("Exit startup in 1 second");
   getStatsFromSpiffs();
   delay(1000);
-
-  // 
 }
 
 //**********************************************************************************
@@ -428,6 +426,15 @@ void performOncePerSecondProcessing() {
   if (nextUpdateFromServer < 0) {
     getTimeFromTimeZoneServer();
   }
+
+  // caching these makes the WiFi handling a lot smoother
+  disp_sec = second();
+  if(hourMode) {
+    disp_hour = hourFormat12();
+  } else {
+    disp_hour = hour();
+  }
+  disp_min = minute();
 }
 
 // ************************************************************
@@ -448,6 +455,12 @@ void performOncePerMinuteProcessing() {
   if (!blankTubes) {
     tubeOnTimeMins++;
   }
+
+  ampm = isAM();
+
+  // caching these makes the WiFi handling a lot smoother
+  disp_day = day();
+  disp_month = month();
 }
 
 // ************************************************************
@@ -531,6 +544,24 @@ void setLeds()
           led1State = false;
           led2State = false;
         }
+        break;
+      }
+    case LED_ON:
+      {
+        led1State = true;
+        led2State = true;
+        break;
+      }
+    case LED_OFF:
+      {
+        led1State = false;
+        led2State = false;
+        break;
+      }
+    case LED_AM_PM:
+      {
+        led1State = !ampm; // bottom LED
+        led2State = ampm; // top LED
         break;
       }
   }
@@ -1465,22 +1496,17 @@ void cycleColours3(int colors[3]) {
 // Break the time into displayable digits
 // ************************************************************
 void loadNumberArrayTime() {
-  NumberArray[3] = minute() % 10;
-  NumberArray[2] = minute() / 10;
-  if (hourMode) {
-    NumberArray[1] = hourFormat12() % 10;
-    NumberArray[0] = hourFormat12() / 10;
-  } else {
-    NumberArray[1] = hour() % 10;
-    NumberArray[0] = hour() / 10;
-  }
+  NumberArray[3] = disp_min % 10;
+  NumberArray[2] = disp_min / 10;
+  NumberArray[1] = disp_hour % 10;
+  NumberArray[0] = disp_hour / 10;
 }
 
 void loadNumberArrayMinsSecs() {
-  NumberArray[3] = second() % 10;
-  NumberArray[2] = second() / 10;
-  NumberArray[1] = minute() % 10;
-  NumberArray[0] = minute() / 10;
+  NumberArray[3] = disp_sec % 10;
+  NumberArray[2] = disp_sec / 10;
+  NumberArray[1] = disp_min % 10;
+  NumberArray[0] = disp_min / 10;
 }
 
 // ************************************************************
@@ -1489,16 +1515,16 @@ void loadNumberArrayMinsSecs() {
 void loadNumberArrayDayMonth() {
   switch (dateFormat) {
     case DATE_FORMAT_MMDD:
-      NumberArray[3] = day() % 10;
-      NumberArray[2] = day() / 10;
-      NumberArray[1] = month() % 10;
-      NumberArray[0] = month() / 10;
+      NumberArray[3] = disp_day % 10;
+      NumberArray[2] = disp_day / 10;
+      NumberArray[1] = disp_month % 10;
+      NumberArray[0] = disp_month / 10;
       break;
     case DATE_FORMAT_DDMM:
-      NumberArray[3] = month() % 10;
-      NumberArray[2] = month() / 10;
-      NumberArray[1] = day() % 10;
-      NumberArray[0] = day() / 10;
+      NumberArray[3] = disp_month % 10;
+      NumberArray[2] = disp_month / 10;
+      NumberArray[1] = disp_day % 10;
+      NumberArray[0] = disp_day / 10;
       break;
   }
 }
@@ -3112,6 +3138,9 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("1", "Slow flash", (ledMode == LED_BLINK_SLOW));
   response_message += getDropDownOption("2", "Fast flash", (ledMode == LED_BLINK_FAST));
   response_message += getDropDownOption("3", "Double flash", (ledMode == LED_BLINK_DBL));
+  response_message += getDropDownOption("4", "Always On", (ledMode == LED_ON));
+  response_message += getDropDownOption("5", "Always Off", (ledMode == LED_OFF));
+  response_message += getDropDownOption("6", "AM/PM", (ledMode == LED_AM_PM));
   response_message += getDropDownFooter();
 
   // Separator dim factor

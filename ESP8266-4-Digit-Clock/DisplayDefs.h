@@ -41,8 +41,11 @@ const int DIM_VALUE = DIGIT_DISPLAY_COUNT / 5;
 #define LED_BLINK_SLOW      1
 #define LED_BLINK_FAST      2
 #define LED_BLINK_DBL       3
+#define LED_ON              4
+#define LED_OFF             5
+#define LED_AM_PM           6
 #define LED_BLINK_DEFAULT   LED_RAILROAD
-#define LED_MODE_MAX        3
+#define LED_MODE_MAX        6
 
 #define DIGIT_COUNT 4
 

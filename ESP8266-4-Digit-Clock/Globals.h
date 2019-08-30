@@ -80,6 +80,12 @@ byte ledMode = 0;       // Separator LED mode
 byte separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
 byte backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
 
+byte disp_hour;
+byte disp_min;
+byte disp_sec;
+byte disp_day;
+byte disp_month;
+
 // ------------- Time management variables -------------
 
 unsigned long nowMillis = 0;
@@ -143,6 +149,7 @@ boolean upOrDown;
 // Used to control the separator LEDs
 boolean led1State;
 boolean led2State;
+boolean ampm = false;
 
 // Strategy 3
 int changeSteps = 0;
