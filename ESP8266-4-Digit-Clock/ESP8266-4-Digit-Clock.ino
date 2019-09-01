@@ -133,11 +133,21 @@ void setup()
   // See if we can already get the time
   getTimeFromTimeZoneServer();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
-  delay(1500);
-  if (nextUpdateFromServer > 0) {
-    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
-  } else {
+  long startSeachMs = millis();
+  bool needUpdate = true;
+  while(((millis() - startSeachMs) < 10000) && needUpdate) {
+    delay(500);
+    getTimeFromTimeZoneServer();
+    if (lastUpdateFromServer > 0) {
+      debugMsg("Got update from NTP, exiting loop");
+      needUpdate = false;
+    }
+  }
+  
+  if (needUpdate) {
     setDiagnosticLED(DIAGS_NTP, STATUS_RED);
+  } else {
+    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
   }
 
   setServerPageHandlers();
