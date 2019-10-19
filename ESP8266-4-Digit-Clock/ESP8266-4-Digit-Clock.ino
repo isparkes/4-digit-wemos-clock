@@ -284,13 +284,17 @@ void loop()
   server.handleClient();
 
   nowMillis = millis();
+  static uint16_t lastSec = second();
 
   // shows us how fast the inner loop is running
   impressionsPerSec++;
 
   // -------------------------------------------------------------------------------
 
-  if (abs(nowMillis - lastCheckMillis) >= 1000) {
+  if (lastSec != second()) {
+    lastSec = second();
+    lastCheckMillis = nowMillis;
+
     if ((second() == 0) && (!triggeredThisSec)) {
       if ((minute() == 0)) {
         if (hour() == 0) {
@@ -308,8 +312,6 @@ void loop()
     if ((second() > 0) && triggeredThisSec) {
       triggeredThisSec = false;
     }
-
-    lastCheckMillis = nowMillis;
   }
 
   // Check button, we evaluate below
