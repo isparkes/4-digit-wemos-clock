@@ -30,7 +30,6 @@
 // Standard Libraries
 #include <FS.h>
 #include <Wire.h>
-#include <DNSServer.h>          //https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer
 
 // Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
 // using the ZIP files in the "libraries" directory
@@ -68,21 +67,23 @@ void setup()
   wifiManager.setDebugOutput(true);
 #endif
 
+  int postStep = 0;
+  loadNumberArrayPOSTMessage(postStep++);
+
   // Set up the LED output
   leds.Begin();
 
   setPinModes();
 
-  // turn off all digits
-  digitOff(0, 0);
-
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
+  loadNumberArrayPOSTMessage(postStep++);
 
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
+  loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 
   for (int i = 0 ; i < 25 ; i++) {
@@ -102,62 +103,6 @@ void setup()
   } else {
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_GREEN);
   }
-
-  wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
-  wifiManager.setAPCallback(configModeCallback);
-
-  setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
-
-  boolean connected = false;
-  connected = wifiManager.autoConnect("ESPClock", "SetMeUp!");
-
-  if (connected) {
-    debugMsg("Connected!");
-    setDiagnosticLED(DIAGS_WIFI, STATUS_GREEN);
-  } else {
-    debugMsg("Could NOT Connect");
-    setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
-  }
-
-  IPAddress apIP = WiFi.softAPIP();
-  IPAddress myIP = WiFi.localIP();
-  debugMsg("AP IP address: " + formatIPAsString(apIP));
-  debugMsg("IP address: " + formatIPAsString(myIP));
-
-  // Set the default TZ for the local time interpretation
-  setenv("TZ", tzs.c_str(), 0);
-
-  // If we lose the connection, we try to recover it
-  WiFi.setAutoReconnect(true);
-
-  // See if we can already get the time
-  getTimeFromTimeZoneServer();
-  setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
-  long startSeachMs = millis();
-  bool needUpdate = true;
-  while(((millis() - startSeachMs) < 10000) && needUpdate) {
-    delay(500);
-    getTimeFromTimeZoneServer();
-    if (lastUpdateFromServer > 0) {
-      debugMsg("Got update from NTP, exiting loop");
-      needUpdate = false;
-    }
-  }
-  
-  if (needUpdate) {
-    setDiagnosticLED(DIAGS_NTP, STATUS_RED);
-  } else {
-    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
-  }
-
-  setServerPageHandlers();
-  server.begin();
-  debugMsg("HTTP server started");
-
-  // Enable OTA updates
-  httpUpdater.setup(&server, "/update", "admin", "update");
-
-  setPIRPullup(usePIRPullup);
 
   // **********************************************************************
 
@@ -230,9 +175,75 @@ void setup()
 
   button1.reset();
 
+  // **********************************************************************
+
+  wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
+  wifiManager.setAPCallback(configModeCallback);
+
+  setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
+  loadNumberArrayPOSTMessage(postStep++);
+
+  boolean connected = false;
+  connected = wifiManager.autoConnect("ESPClock", "SetMeUp!");
+
+  if (connected) {
+    debugMsg("Connected!");
+    setDiagnosticLED(DIAGS_WIFI, STATUS_GREEN);
+  } else {
+    debugMsg("Could NOT Connect");
+    setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
+  }
+
+  loadNumberArrayPOSTMessage(postStep++);
+  
+  IPAddress apIP = WiFi.softAPIP();
+  IPAddress myIP = WiFi.localIP();
+  debugMsg("AP IP address: " + formatIPAsString(apIP));
+  debugMsg("IP address: " + formatIPAsString(myIP));
+
+  // Set the default TZ for the local time interpretation
+  setenv("TZ", tzs.c_str(), 0);
+
+  // If we lose the connection, we try to recover it
+  WiFi.setAutoReconnect(true);
+
+  // See if we can already get the time
+  loadNumberArrayPOSTMessage(postStep++);
+  getTimeFromTimeZoneServer();
+  setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
+  long startSeachMs = millis();
+  bool needUpdate = true;
+  while(((millis() - startSeachMs) < 10000) && needUpdate) {
+    delay(500);
+    getTimeFromTimeZoneServer();
+    if (lastUpdateFromServer > 0) {
+      debugMsg("Got update from NTP, exiting loop");
+      needUpdate = false;
+    }
+  }
+
+  if (needUpdate) {
+    setDiagnosticLED(DIAGS_NTP, STATUS_RED);
+  } else {
+    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
+  }
+
+  loadNumberArrayPOSTMessage(postStep++);
+  setServerPageHandlers();
+  server.begin();
+  debugMsg("HTTP server started");
+
+  // Enable OTA updates
+  loadNumberArrayPOSTMessage(postStep++);
+  httpUpdater.setup(&server, "/update", "admin", "update");
+
+  loadNumberArrayPOSTMessage(postStep++);
+  setPIRPullup(usePIRPullup);
+
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
 
+  loadNumberArrayPOSTMessage(postStep++);
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
@@ -251,6 +262,7 @@ void setup()
   // don't blank anything right now
   blanked = false;
   setTubesAndLEDSBlankMode();
+  loadNumberArrayPOSTMessage(postStep++);
 
   // mark that we have done the EEPROM setup
   testMode = false;
@@ -258,6 +270,7 @@ void setup()
 
   debugMsg("Exit startup in 1 second");
   getStatsFromSpiffs();
+  loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 }
 
@@ -1499,6 +1512,10 @@ void loadNumberArrayTime() {
   NumberArray[0] = disp_hour / 10;
 }
 
+
+// ************************************************************
+// Break the minutes and seconds into displayable digits
+// ************************************************************
 void loadNumberArrayMinsSecs() {
   NumberArray[3] = disp_sec % 10;
   NumberArray[2] = disp_sec / 10;
@@ -1640,6 +1657,13 @@ void loadDisplayConfigValue() {
   displayType[1] = valueDisplayType[0] & 0xf;
   displayType[2] = valueDisplayType[1] >> 4;
   displayType[3] = valueDisplayType[1] & 0xf;
+}
+
+// ************************************************************
+// Display preset - used for Power On Self Test
+// ************************************************************
+void loadNumberArrayPOSTMessage(int postValue) {
+  loadNumberArrayConfIntWide(postValue);
 }
 
 // ************************************************************
@@ -1803,7 +1827,7 @@ void digitOn(byte digit, byte value) {
 }
 
 // ************************************************************
-// Turn the anodes off, but leave the cathode alone
+// Turn the anodes off, but leave the cathodes alone
 // ************************************************************
 void digitOff(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf);
