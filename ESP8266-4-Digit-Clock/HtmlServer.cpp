@@ -2,6 +2,7 @@
 
 ESP8266WebServer server(80);            // port 80
 ESP8266HTTPUpdateServer httpUpdater;    // ESP8266HTTPUpdateServer.h
+MDNSResponder mdns;
 
 // ----------------------- Auth ------------------------
 

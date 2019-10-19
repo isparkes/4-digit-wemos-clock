@@ -37,7 +37,6 @@
 #include <NeoPixelBus.h>        // https://github.com/Makuna/NeoPixelBus (Makuna 2.3.4)
 #include <WiFiManager.h>        // https://github.com/tzapu/WiFiManager  (tzapu 0.14.0)
 #include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson (bblanchon 5.13.2)
-#include <ESPAsyncUDP.h>        // https://github.com/me-no-dev/ESPAsyncUDP (master HEAD)
 
 // Other parts of the code, broken out for clarity
 #include "Globals.h"
@@ -47,9 +46,12 @@
 #include "ClockUtils.h"
 #include "ClockDefs.h"
 #include "ESP_DS1307.h"
+#include "NtpAsync.h"
 #include "HtmlServer.h"
 
-#define DEBUG_OFF
+#define DEBUG
+
+NtpAsync ntpAsync;
 
 //**********************************************************************************
 //**********************************************************************************
@@ -60,11 +62,20 @@ void setup()
 {
   WiFiManager wifiManager;
 
+  // set up the NTP component and wire up the "got time update" callback
+  ntpAsync.setUp();
+  NewTimeCallback ntcb = newTimeUpdateReceived;
+  ntpAsync.setNewTimeCallback(ntcb);
+  
 #ifdef DEBUG
   setupDebug(true);
   debugMsg("");
   debugMsg("--------------------- START ---------------------");
   wifiManager.setDebugOutput(true);
+  
+  DebugCallback dbcb = debugMsg;
+  ntpAsync.setDebugCallback(dbcb);
+  ntpAsync.setDebugOutput(true);
 #endif
 
   int postStep = 0;
@@ -109,6 +120,7 @@ void setup()
   // Clear down any spurious button action
   button1.reset();
 
+  testMode = false;
   if (testMode) {
     debugMsg("Doing test sequence");
     boolean oldUseLDR = useLDR;
@@ -201,22 +213,19 @@ void setup()
   debugMsg("AP IP address: " + formatIPAsString(apIP));
   debugMsg("IP address: " + formatIPAsString(myIP));
 
-  // Set the default TZ for the local time interpretation
-  setenv("TZ", tzs.c_str(), 0);
-
   // If we lose the connection, we try to recover it
   WiFi.setAutoReconnect(true);
 
   // See if we can already get the time
   loadNumberArrayPOSTMessage(postStep++);
-  getTimeFromTimeZoneServer();
+  ntpAsync.getTimeFromNTP();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
   long startSeachMs = millis();
   bool needUpdate = true;
   while(((millis() - startSeachMs) < 10000) && needUpdate) {
     delay(500);
-    getTimeFromTimeZoneServer();
-    if (lastUpdateFromServer > 0) {
+    ntpAsync.getTimeFromNTP();
+    if (ntpAsync.ntpTimeValid(millis()) > 0) {
       debugMsg("Got update from NTP, exiting loop");
       needUpdate = false;
     }
@@ -236,6 +245,11 @@ void setup()
   // Enable OTA updates
   loadNumberArrayPOSTMessage(postStep++);
   httpUpdater.setup(&server, "/update", "admin", "update");
+
+  loadNumberArrayPOSTMessage(postStep++);
+  if (mdns.begin("esp4digit", WiFi.localIP())) {
+    Serial.println("MDNS responder started");
+  }
 
   loadNumberArrayPOSTMessage(postStep++);
   setPIRPullup(usePIRPullup);
@@ -282,6 +296,7 @@ void setup()
 void loop()
 {
   server.handleClient();
+  mdns.update();
 
   nowMillis = millis();
   static uint16_t lastSec = second();
@@ -445,11 +460,8 @@ void performOncePerSecondProcessing() {
   // Reset PIR debounce
   pirConsecutiveCounts = 0;
 
-  // NTP updating
-  nextUpdateFromServer--;
-
-  if (nextUpdateFromServer < 0) {
-    getTimeFromTimeZoneServer();
+  if (ntpAsync.getNextUpdate(nowMillis) < 0) {
+    ntpAsync.getTimeFromNTP();
   }
 
   // caching these makes the WiFi handling a lot smoother
@@ -468,7 +480,7 @@ void performOncePerSecondProcessing() {
 void performOncePerMinuteProcessing() {
   debugMsg("---> OncePerMinuteProcessing");
 
-  debugMsg("nu: " + String(nextUpdateFromServer));
+  debugMsg("nu: " + String(ntpAsync.getNextUpdate(nowMillis)));
 
   // Set the internal time to the time from the RTC even if we are still in
   // NTP valid time. This is more accurate than using the internal time source
@@ -725,7 +737,7 @@ void setNextMode(int displayMode) {
         break;
       }
     case MODE_HOURS_SET: {
-        if (ntpTimeValid()) {
+        if (ntpAsync.ntpTimeValid(nowMillis)) {
           // skip past the time and date settings
           setNewNextMode(MODE_12_24);
         }
@@ -1067,11 +1079,6 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_HOURS_SET: {
-        if (ntpTimeValid()) {
-          // skip past the time and date settings
-          nextMode += 6;
-          currentMode += 6;
-        }
         if (button1.isButtonPressedAndReleased()) {
           incHours();
         }
@@ -2350,6 +2357,16 @@ void setNewNextMode(int newNextMode) {
   currentMode = newNextMode - 1;
 }
 
+// ************************************************************
+// Callback: When the NTP component tells us there is an update
+// go and get it
+// ************************************************************
+void newTimeUpdateReceived() {
+  debugMsg("Got a new time update");
+  setTimeFromServer(ntpAsync.getLastTimeFromServer());
+  setRTCTime();
+}
+
 //**********************************************************************************
 //**********************************************************************************
 //*                         RTC Module Time Provider                               *
@@ -2477,14 +2494,17 @@ boolean getConfigFromSpiffs() {
         if (json.success()) {
           debugMsg("parsed json");
 
-          ntpPool = json["ntp_pool"].as<String>();
+          String ntpPool = json["ntp_pool"].as<String>();
           debugMsg("Loaded NTP pool: " + ntpPool);
+          ntpAsync.setNtpPool(ntpPool);
 
-          ntpUpdateInterval = json["ntp_update_interval"].as<unsigned long>();
-          debugMsg("Loaded NTP update interval: " + ntpUpdateInterval);
+          int ntpUpdateInterval = json["ntp_update_interval"].as<int>();
+          debugMsg("Loaded NTP update interval: " + String(ntpUpdateInterval));
+          ntpAsync.setUpdateInterval(ntpUpdateInterval);
 
-          tzs = json["time_zone_string"].as<String>();
+          String tzs = json["time_zone_string"].as<String>();
           debugMsg("Loaded time zone string: " + tzs);
+          ntpAsync.setTZS(tzs);
 
           hourMode = json["hourMode"].as<bool>();
           debugMsg("Loaded 12/24H mode: " + String(hourMode));
@@ -2605,9 +2625,9 @@ void saveConfigToSpiffs() {
 
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
-    json["ntp_pool"] = ntpPool;
-    json["ntp_update_interval"] = ntpUpdateInterval;
-    json["time_zone_string"] = tzs;
+    json["ntp_pool"] = ntpAsync.getNtpPool();
+    json["ntp_update_interval"] = ntpAsync.getUpdateInterval();
+    json["time_zone_string"] = ntpAsync.getTZS();
     json["hourMode"] = hourMode;
     json["blankLeading"] = blankLeading;
     json["scrollback"] = scrollback;
@@ -2740,9 +2760,7 @@ void saveStatsToSpiffs() {
 // Reset configuration values back to what they once were
 // ************************************************************
 void factoryReset() {
-  ntpPool = NTP_POOL_DEFAULT;
-  ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
-  tzs = TIME_ZONE_STRING_DEFAULT;
+  ntpAsync.resetDefaults();
   hourMode = HOUR_MODE_DEFAULT;
   blankLeading = LEAD_BLANK_DEFAULT;
   scrollback = SCROLLBACK_DEFAULT;
@@ -2815,9 +2833,9 @@ void rootPageHandler() {
     response_message += getTableRow2Col("WLAN IP", formatIPAsString(ip));
     response_message += getTableRow2Col("WLAN MAC", WiFi.macAddress());
     response_message += getTableRow2Col("WLAN SSID", WiFi.SSID());
-    response_message += getTableRow2Col("NTP Pool", ntpPool);
-    response_message += getTableRow2Col("TZ", getenv("TZ"));
-    response_message += getTableRow2Col("Last NTP time", lastTimeFromServer);
+    response_message += getTableRow2Col("NTP Pool", ntpAsync.getNtpPool());
+    response_message += getTableRow2Col("TZ", ntpAsync.getTZS());
+    response_message += getTableRow2Col("Last NTP time", ntpAsync.getLastTimeFromServer());
   }
   else
   {
@@ -2829,16 +2847,14 @@ void rootPageHandler() {
 
   response_message += getTableRow2Col("Uptime", secsToReadableString(millis() / 1000));
 
-  long lastUpdateTimeSecs = (nowMillis - lastUpdateFromServer) / 1000;
+  long lastUpdateTimeSecs = ntpAsync.getLastUpdateTimeSecs(millis());
   response_message += getTableRow2Col("Last time update", secsToReadableString(lastUpdateTimeSecs) + " ago");
 
-  signed long absNextUpdate = abs(nextUpdateFromServer);
+  signed long absNextUpdate = abs(ntpAsync.getNextUpdate(millis()));
   String overdueInd = "";
-  if (nextUpdateFromServer < 0) {
+  if (absNextUpdate < 0) {
     overdueInd = " overdue";
-    absNextUpdate = -nextUpdateFromServer;
-  } else {
-    absNextUpdate = nextUpdateFromServer;
+    absNextUpdate = -absNextUpdate;
   }
   response_message += getTableRow2Col("Time before next update", secsToReadableString(absNextUpdate) + overdueInd);
 
@@ -2863,7 +2879,7 @@ void rootPageHandler() {
   String rtcState = useRTC ? "Installed" : "Not installed";
   String timeSource;
 
-  if (ntpTimeValid()) {
+  if (ntpAsync.ntpTimeValid(nowMillis)) {
     timeSource = "NTP";
   } else if (useRTC) {
     timeSource = "RTC";
@@ -2921,13 +2937,17 @@ void timeServerPageHandler() {
   debugMsg("Time page in");
 
   boolean changed = false;
-
+  String ntpPool = ntpAsync.getNtpPool();
+  String tzs = ntpAsync.getTZS();
+  int ntpUpdateInterval = ntpAsync.getUpdateInterval();
+  
   checkServerArgString("ntppool", "NTP Pool", changed, ntpPool);
   checkServerArgInt("ntpupdate", "NTP update interval", changed, ntpUpdateInterval);
   checkServerArgString("tzs", "Time Zone String", changed, tzs);
-  if (String(getenv("TZ")) != tzs) {
-    debugMsg("Setting TZ ENV: " + tzs);
-    setenv("TZ", tzs.c_str(), 1);
+  if (changed) {
+    ntpAsync.setTZS(tzs);
+    ntpAsync.setNtpPool(ntpPool);
+    ntpAsync.setUpdateInterval(ntpUpdateInterval);
   }
   saveToSpiffsIfChanged(changed);
 
@@ -2939,10 +2959,10 @@ void timeServerPageHandler() {
   // form header
   response_message += getFormHead("Select time server");
 
-  debugMsg("ntpPool is: " + ntpPool);
-  response_message += getTextInputWide("NTP Pool", "ntppool", ntpPool, false);
-  response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpUpdateInterval, false);
-  response_message += getTextInputWide("Time Zone String", "tzs", tzs, false);
+  debugMsg("ntpPool is: " + ntpAsync.getNtpPool());
+  response_message += getTextInputWide("NTP Pool", "ntppool", ntpAsync.getNtpPool(), false);
+  response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpAsync.getUpdateInterval(), false);
+  response_message += getTextInputWide("Time Zone String", "tzs", ntpAsync.getTZS(), false);
 
   response_message += getSubmitButton("Set");
 
@@ -3325,7 +3345,7 @@ void resetWiFiPageHandler() {
 void ntpUpdatePageHandler() {
   debugMsg("NTP Update page in");
 
-  getTimeFromTimeZoneServer();
+  ntpAsync.getTimeFromNTP();
 
   server.sendHeader("Location", "/utility", true);
   server.send(302, "text/plain", "");
@@ -3386,114 +3406,6 @@ void localCSSHandler()
 // ----------------------------------------------------------------------------------------------------
 
 // ************************************************************
-// Asynchronous NTP query
-// ************************************************************
-void getTimeFromTimeZoneServer() {
-  debugMsg("Async NTP in");
-
-  if (WiFi.status() != WL_CONNECTED) {
-    debugMsg("WiFi not connected. Abort.");
-    return;
-  }
-
-  IPAddress serverIP;
-  WiFi.hostByName(ntpPool.c_str(), serverIP);
-  String str = "NTP IPAddr: ";
-  str += serverIP.toString();
-  debugMsg(str);
-
-  byte buffer[NTP_PACKET_SIZE];
-  memset(buffer, 0, NTP_PACKET_SIZE);
-  buffer[0] = 0b11100011;   // LI, Version, Mode
-  buffer[1] = 0;            // Stratum, or type of clock
-  buffer[2] = 9;            // Polling Interval (9 = 2^9 secs = ~9 mins, close to our 10 min default)
-  buffer[3] = 0xEC;         // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
-  buffer[12]  = 'X';        // "kiss code", see RFC5905
-  buffer[13]  = 'E';        // (codes starting with 'X' are not interpreted)
-  buffer[14]  = 'Z';
-  buffer[15]  = 'T';
-
-  ntpStarted = millis();
-  udp.connect(serverIP, 123); //NTP requests are to port 123
-  udp.write(buffer, NTP_PACKET_SIZE);
-  udp.onPacket(onPacketReceived_cb);
-
-  debugMsg("Async GET Time out");
-}
-
-// ************************************************************
-// Asynchronous NTP callback for handling responses
-// ************************************************************
-void onPacketReceived_cb(AsyncUDPPacket packet) {
-  debugMsgCont("UDP Packet Type: ");
-  debugMsg(packet.isBroadcast() ? "Broadcast" : packet.isMulticast() ? "Multicast" : "Unicast");
-  debugMsgCont("From: ");
-  debugMsgCont(formatIPAsString(packet.remoteIP()));
-  debugMsgCont(":");
-  debugMsg(formatIPAsString(packet.remotePort()));
-  debugMsgCont("To: ");
-  debugMsgCont(formatIPAsString(packet.localIP()));
-  debugMsgCont(":");
-  debugMsg(String(packet.localPort()));
-  debugMsgCont("Length: ");
-  debugMsg(String(packet.length()));
-
-  if (packet.length() != 48) {
-    debugMsg("Received data, but got invalid length: " + String(packet.length()));
-  } else {
-    uint8_t buffer[NTP_PACKET_SIZE];
-    memcpy(&buffer, packet.data(), packet.length());
-    //prepare timestamps
-    uint32_t highWord, lowWord;
-    highWord = ( buffer[16] << 8 | buffer[17] ) & 0x0000FFFF;
-    lowWord = ( buffer[18] << 8 | buffer[19] ) & 0x0000FFFF;
-    uint32_t reftsSec = highWord << 16 | lowWord;       // reference timestamp seconds
-
-    highWord = ( buffer[32] << 8 | buffer[33] ) & 0x0000FFFF;
-    lowWord = ( buffer[34] << 8 | buffer[35] ) & 0x0000FFFF;
-    uint32_t rcvtsSec = highWord << 16 | lowWord;       // receive timestamp seconds
-
-    highWord = ( buffer[40] << 8 | buffer[41] ) & 0x0000FFFF;
-    lowWord = ( buffer[42] << 8 | buffer[43] ) & 0x0000FFFF;
-    uint32_t secsSince1900 = highWord << 16 | lowWord;      // transmit timestamp seconds
-
-    highWord = ( buffer[44] << 8 | buffer[45] ) & 0x0000FFFF;
-    lowWord = ( buffer[46] << 8 | buffer[47] ) & 0x0000FFFF;
-    uint32_t fraction = highWord << 16 | lowWord;       // transmit timestamp fractions
-
-    //check if received data makes sense
-    //buffer[1] = stratum - should be 1..15 for valid reply
-    //also checking that all timestamps are non-zero and receive timestamp seconds are <= transmit timestamp seconds
-    if ((buffer[1] < 1) or (buffer[1] > 15) or (reftsSec == 0) or (rcvtsSec == 0) or (rcvtsSec > secsSince1900)) {
-      // we got invalid packet
-      debugMsg("Got data, but got INVALID_DATA");
-      return;
-    }
-
-    // Set the t and measured_at variables that were passed by reference
-    uint32_t done = millis();
-    debugMsg("success round trip " + String(done - ntpStarted) + " ms");
-    unsigned long t = secsSince1900 - 2208988800UL;                     // Subtract 70 years to get seconds since 1970
-    uint16_t ms = fraction / 4294967UL;                                 // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
-    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms;  // Assume symmetric network latency and return when we think the whole second was.
-
-    lastUpdateFromServer = done;
-    nextUpdateFromServer = ntpUpdateInterval;
-    debugMsg("set nu: " + String(nextUpdateFromServer));
-
-    time_t ntpTime = t;
-    const tm* tm = localtime(&ntpTime);
-
-    String timeString = String(tm->tm_year + 1900) + "," + String(tm->tm_mon + 1) + "," + String(tm->tm_mday) + "," + String(tm->tm_hour) + "," + String(tm->tm_min) + "," + String(tm->tm_sec);
-    debugMsg("NTP Update time str: " + timeString);
-    lastTimeFromServer = timeString;
-    setTimeFromServer(lastTimeFromServer);
-    setRTCTime();
-  }
-}
-
-// ************************************************************
 // What it says on the tin
 // ************************************************************
 boolean getIsConnected() {
@@ -3520,13 +3432,6 @@ void reconnectDroppedConnection() {
     ETS_UART_INTR_ENABLE();
     WiFi.begin();
   }
-}
-
-// ************************************************************
-// see if the NTP time is still to be considered valid
-// ************************************************************
-boolean ntpTimeValid() {
-  return lastUpdateFromServer != 0 && ((nowMillis - lastUpdateFromServer) < (2000 * ntpUpdateInterval));
 }
 
 // ************************************************************

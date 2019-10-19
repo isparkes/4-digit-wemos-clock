@@ -3,6 +3,7 @@
 
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
+#include <ESP8266mDNS.h>
 #include "ClockUtils.h"
 
 // ----------------------- Auth ------------------------
@@ -15,6 +16,7 @@
 
 extern ESP8266WebServer server;
 extern ESP8266HTTPUpdateServer httpUpdater;
+extern MDNSResponder mdns;
 
 boolean getWebAuthentication();
 void setWebAuthentication(boolean newValue);
