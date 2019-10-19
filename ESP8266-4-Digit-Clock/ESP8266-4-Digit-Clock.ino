@@ -470,9 +470,9 @@ void performOncePerMinuteProcessing() {
 
   debugMsg("nu: " + String(nextUpdateFromServer));
 
-  if (!ntpTimeValid()) {
-    getRTCTime(true);
-  }
+  // Set the internal time to the time from the RTC even if we are still in
+  // NTP valid time. This is more accurate than using the internal time source
+  getRTCTime(true);
 
   // Usage stats
   uptimeMins++;
@@ -2298,11 +2298,10 @@ void randomRGBFlash(int delayVal) {
   delay(delayVal);
 }
 
-/**
-   Set the diagnostic LED colour:
-   stepNumber 0..5
-   state: 0 = red, 1 = orange, 2 = green, 3 = blue
-*/
+// ************************************************************
+// Set the diagnostic LED colour:
+// state: 0 = red, 1 = orange, 2 = green, 3 = blue
+// ************************************************************
 void setDiagnosticLED(byte stepNumber, byte state) {
   for (int i = 0 ; i < DIGIT_COUNT ; i++) {
     if (i > stepNumber) {
