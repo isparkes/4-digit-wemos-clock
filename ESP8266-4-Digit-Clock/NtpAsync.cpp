@@ -1,7 +1,7 @@
 #include "NtpAsync.h"
 
 // ************************************************************
-//
+// Reset defaults and set up
 // ************************************************************
 void NtpAsync::setUp() {
   debugMsg("Set up");
@@ -24,6 +24,9 @@ void NtpAsync::resetDefaults() {
 void NtpAsync::setTZS(String tzs) {
   _tzs = tzs;
   setenv("TZ", _tzs.c_str(), 1);
+
+  // We changed the time zone, we need to force an update
+  resetNextUpdate();
 }
 
 // ************************************************************
@@ -78,6 +81,14 @@ signed int NtpAsync::getNextUpdate(unsigned long nowMillis) {
 // ************************************************************
 unsigned long NtpAsync::getLastUpdate() {
   return _lastUpdateFromServer;
+}
+
+
+// ************************************************************
+// Invalidate the last update time and trigger a new NTP update
+// ************************************************************
+void NtpAsync::resetNextUpdate() {
+  _lastUpdateFromServer = 0;
 }
 
 // ************************************************************

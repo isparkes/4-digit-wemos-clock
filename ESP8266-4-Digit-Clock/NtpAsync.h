@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <ESPAsyncUDP.h>        // https://github.com/me-no-dev/ESPAsyncUDP (master HEAD)
 #include <ESP8266WiFi.h>
-#include <DNSServer.h>
+#include <DNSServer.h>          //https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer
 
 // AsyncUDP _udp;
 
@@ -29,16 +29,24 @@ class NtpAsync
     void getTimeFromNTP();
     bool getIsConnected();
     void resetDefaults();
+    
     void setTZS(String newTzs);
     String getTZS();
+    
     void setUpdateInterval(int updateInterval);
     int getUpdateInterval();
+    
     String getNtpPool();
     void setNtpPool(String pool);
+    
     unsigned long getLastUpdate();
     signed int getNextUpdate(unsigned long nowMillis);
+    void resetNextUpdate();
+    
     String getLastTimeFromServer();
+    
     bool ntpTimeValid(unsigned long nowMillis);
+    
     long getLastUpdateTimeSecs(unsigned long nowMillis);
 
     // callbacks
