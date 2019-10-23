@@ -247,8 +247,9 @@ void setup()
   httpUpdater.setup(&server, "/update", "admin", "update");
 
   loadNumberArrayPOSTMessage(postStep++);
-  if (mdns.begin("esp4digit", WiFi.localIP())) {
-    Serial.println("MDNS responder started");
+  if (mdns.begin(WiFi.hostname(), WiFi.localIP())) {
+    debugMsg("MDNS responder started as http://" + WiFi.hostname() + ".local");
+    mdns.addService("http", "tcp", 80);
   }
 
   loadNumberArrayPOSTMessage(postStep++);
