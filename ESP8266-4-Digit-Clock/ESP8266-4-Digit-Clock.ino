@@ -2827,6 +2827,7 @@ void rootPageHandler() {
     response_message += getTableRow2Col("NTP Pool", ntpAsync.getNtpPool());
     response_message += getTableRow2Col("TZ", ntpAsync.getTZS());
     response_message += getTableRow2Col("Last NTP time", ntpAsync.getLastTimeFromServer());
+    response_message += getTableRow2Col("Clock Name", WiFi.hostname());
   }
   else
   {
