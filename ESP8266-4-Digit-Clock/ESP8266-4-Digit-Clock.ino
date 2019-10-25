@@ -49,7 +49,7 @@
 #include "NtpAsync.h"
 #include "HtmlServer.h"
 
-#define DEBUG
+#define DEBUG_OFF
 
 NtpAsync ntpAsync;
 
@@ -78,8 +78,8 @@ void setup()
   ntpAsync.setDebugOutput(true);
 #endif
 
-  int postStep = 0;
-  loadNumberArrayPOSTMessage(postStep++);
+  // int postStep = 0;
+  // loadNumberArrayPOSTMessage(postStep++);
 
   // Set up the LED output
   leds.Begin();
@@ -89,12 +89,12 @@ void setup()
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
 
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 
   for (int i = 0 ; i < 25 ; i++) {
@@ -193,7 +193,7 @@ void setup()
   wifiManager.setAPCallback(configModeCallback);
 
   setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
 
   boolean connected = false;
   connected = wifiManager.autoConnect(WiFi.hostname().c_str(), "SetMeUp!");
@@ -206,7 +206,7 @@ void setup()
     setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
   }
 
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   
   IPAddress apIP = WiFi.softAPIP();
   IPAddress myIP = WiFi.localIP();
@@ -217,7 +217,7 @@ void setup()
   WiFi.setAutoReconnect(true);
 
   // See if we can already get the time
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   ntpAsync.getTimeFromNTP();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
   long startSeachMs = millis();
@@ -237,28 +237,28 @@ void setup()
     setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
   }
 
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   setServerPageHandlers();
   server.begin();
   debugMsg("HTTP server started");
 
   // Enable OTA updates
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   httpUpdater.setup(&server, "/update", "admin", "update");
 
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   if (mdns.begin(WiFi.hostname(), WiFi.localIP())) {
     debugMsg("MDNS responder started as http://" + WiFi.hostname() + ".local");
     mdns.addService("http", "tcp", 80);
   }
 
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   setPIRPullup(usePIRPullup);
 
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
 
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
@@ -277,7 +277,7 @@ void setup()
   // don't blank anything right now
   blanked = false;
   setTubesAndLEDSBlankMode();
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
 
   // mark that we have done the EEPROM setup
   testMode = false;
@@ -285,7 +285,7 @@ void setup()
 
   debugMsg("Exit startup in 1 second");
   getStatsFromSpiffs();
-  loadNumberArrayPOSTMessage(postStep++);
+  // loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 }
 
