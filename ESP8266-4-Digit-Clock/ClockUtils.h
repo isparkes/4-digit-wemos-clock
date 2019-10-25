@@ -9,6 +9,7 @@
 #include <Wire.h>
 #include <ESP8266HTTPClient.h>
 #include "HtmlServer.h"
+#include "ClockDefs.h"
 
 /*
  * A collection of utility functions
@@ -20,6 +21,7 @@ int getIntValue(String data, char separator, int index);
 String getValue(String data, char separator, int index);
 void grabInts(String s, int *dest, String sep);
 unsigned char hex2bcd (unsigned char x);
+void setPinModes();
 
 // ----------------------------------------------------------------------------------------------------
 // ------------------------------------------- HTML functions -----------------------------------------

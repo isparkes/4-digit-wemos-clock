@@ -26,8 +26,8 @@ byte currNumberArray[DIGIT_COUNT]      = {0, 0, 0, 0};
 byte displayType[DIGIT_COUNT]          = {FADE, FADE, FADE, FADE};
 byte fadeState[DIGIT_COUNT]            = {0, 0, 0, 0};
 byte valueDisplayTime                  = 0;
-byte valueToShow[DIGIT_COUNT / 2]      = {0, 0};
-byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL >> 4, NORMAL | NORMAL >> 4}; // All normal by default
+int valueToShow                        = 0;
+byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL << 4, NORMAL | NORMAL << 4}; // All normal by default
 
 // ------------------- Config Variables ----------------
 

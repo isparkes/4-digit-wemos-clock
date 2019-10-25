@@ -196,7 +196,7 @@ void setup()
   loadNumberArrayPOSTMessage(postStep++);
 
   boolean connected = false;
-  connected = wifiManager.autoConnect("ESPClock", "SetMeUp!");
+  connected = wifiManager.autoConnect(WiFi.hostname().c_str(), "SetMeUp!");
 
   if (connected) {
     debugMsg("Connected!");
@@ -1057,8 +1057,8 @@ void processCurrentMode(int displayMode) {
             if (!msgDisplaying) {
               // no slots mode, check if we are in valueDisplayMode
               if (valueDisplayTime > 0) {
-                loadNumberArrayValue();
-                loadDisplayConfigValue();
+                loadNumberArrayConfIntWide(valueToShow);
+                loadDisplaySetValueType();
               } else {
                 // normal time
                 loadNumberArrayTime();
@@ -1068,8 +1068,8 @@ void processCurrentMode(int displayMode) {
           } else {
             // no slots mode, check if we are in valueDisplayMode
             if (valueDisplayTime > 0) {
-              loadNumberArrayValue();
-              loadDisplayConfigValue();
+              loadNumberArrayConfIntWide(valueToShow);
+              loadDisplaySetValueType();
             } else {
               // normal time
               loadNumberArrayTime();
@@ -1650,19 +1650,9 @@ void loadNumberArraySameValue(byte val) {
 }
 
 // ************************************************************
-// Show the value we got over I2C
-// ************************************************************
-void loadNumberArrayValue() {
-  NumberArray[3] = valueToShow[1] & 0xf;
-  NumberArray[2] = valueToShow[1] >> 4;
-  NumberArray[1] = valueToShow[0] & 0xf;
-  NumberArray[0] = valueToShow[0] >> 4;
-}
-
-// ************************************************************
 // Display preset
 // ************************************************************
-void loadDisplayConfigValue() {
+void loadDisplaySetValueType() {
   displayType[0] = valueDisplayType[0] >> 4;
   displayType[1] = valueDisplayType[0] & 0xf;
   displayType[2] = valueDisplayType[1] >> 4;
@@ -3245,7 +3235,6 @@ void clockConfigPageHandler() {
 // Send a value to the clock for display
 // ************************************************************
 void setDisplayValuePageHandler() {
-  String resultMessage;
   byte timeValue = 0xff;
   boolean valueValid = false;
   boolean timeValid = false;
@@ -3260,16 +3249,15 @@ void setDisplayValuePageHandler() {
   checkServerArgInt("format", "format", formatValid, valueFormat);
 
   if (valueValid) {
-    byte val1 = hex2bcd(valueTime % 100);
-    valueTime = valueTime / 100;
-    byte val0 = hex2bcd(valueTime % 100);
-    valueToShow[0] = val0;
-    valueToShow[1] = val1;
+    valueToShow = valueToDisplay % 10000;
   }
   
   if (timeValid) {
     if (valueTime > 255)
       valueTime = 255;
+    valueDisplayTime = valueTime;
+  } else {
+    valueDisplayTime = 10;
   }
 
   if (formatValid) {
@@ -3287,11 +3275,11 @@ void setDisplayValuePageHandler() {
 
   if (valueValid) {
     response_message += "<div class=\"alert alert-success fade in\"><strong>";
-    response_message += resultMessage;
+    response_message += "display value was set!";
     response_message += "</strong></div></div>";
   } else {
     response_message += "<div class=\"alert alert-error fade in\"><strong>";
-    response_message += "You need to set at least the \"Time\" parameter! A valid command line is http://<clock.ip.addres>/setvalue?value=123456&time=60&format=333333";
+    response_message += "You need to set at least the \"time\" parameter! A valid command line is http://clock.ip.address/setvalue?value=1234&time=60&format=3333";
     response_message += "</strong></div></div>";
   }
 
@@ -3483,12 +3471,7 @@ void setServerPageHandlers() {
     return clockConfigPageHandler();
   });
 
-  server.on("/setvalue", []() {
-    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
-      return server.requestAuthentication();
-    }
-    return setDisplayValuePageHandler();
-  });
+  server.on("/setvalue", setDisplayValuePageHandler);
 
   server.on("/utility", []() {
     if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
