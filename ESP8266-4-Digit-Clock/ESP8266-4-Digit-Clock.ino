@@ -2515,6 +2515,9 @@ boolean getConfigFromSpiffs() {
           dateFormat = json["dateFormat"];
           debugMsg("Loaded date format: " + String(dateFormat));
 
+          dayBlanking = json["dayBlanking"];
+          debugMsg("Loaded dayBlanking: " + String(dayBlanking));
+
           dimDark = json["dimDark"];
           debugMsg("Loaded dimDark: " + String(dimDark));
 
@@ -2764,7 +2767,6 @@ void factoryReset() {
   dimBright = SENSOR_HIGH_DEFAULT;
   sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
   dateFormat = DATE_FORMAT_DEFAULT;
-  dayBlanking = DAY_BLANKING_DEFAULT;
   backlightMode = BACKLIGHT_DEFAULT;
   redCnl = COLOUR_RED_CNL_DEFAULT;
   grnCnl = COLOUR_GRN_CNL_DEFAULT;
