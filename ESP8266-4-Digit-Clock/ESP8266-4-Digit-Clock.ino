@@ -3253,6 +3253,7 @@ void setDisplayValuePageHandler() {
 
   if (valueValid) {
     valueToShow = valueToDisplay % 10000;
+    valueDisplayTime = 10;
   }
   
   if (timeValid) {
@@ -3282,7 +3283,7 @@ void setDisplayValuePageHandler() {
     response_message += "</strong></div></div>";
   } else {
     response_message += "<div class=\"alert alert-error fade in\"><strong>";
-    response_message += "You need to set at least the \"time\" parameter! A valid command line is http://clock.ip.address/setvalue?value=1234&time=60&format=3333";
+    response_message += "You need to set at least the \"value\" parameter! A valid command line is http://clock.ip.address/setvalue?value=1234&time=60&format=3333";
     response_message += "</strong></div></div>";
   }
 
