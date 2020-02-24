@@ -13,8 +13,8 @@
   (title_block
     (title "4Digit IN-12 Clock")
     (date 2016-05-05)
-    (rev Rev4)
-    (company "Ian's Nixie Clocks")
+    (rev Rev1)
+    (company "Ian Sparkes Nixie Clocks")
   )
 
   (layers
