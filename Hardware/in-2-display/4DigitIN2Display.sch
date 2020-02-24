@@ -706,7 +706,7 @@ Wire Wire Line
 Wire Wire Line
 	1650 5800 3250 5800
 $Comp
-L russian-nixies:IN-2 N1
+L 4DigitIN2Display-rescue:IN-2-russian-nixies N1
 U 1 1 5C03187E
 P 1950 5100
 F 0 "N1" V 1900 5250 50  0000 R CNN
@@ -739,7 +739,7 @@ Wire Wire Line
 Wire Wire Line
 	2350 5500 2350 6150
 $Comp
-L russian-nixies:IN-2 N2
+L 4DigitIN2Display-rescue:IN-2-russian-nixies N2
 U 1 1 5C089F48
 P 3550 5100
 F 0 "N2" V 3500 5250 50  0000 R CNN
@@ -750,7 +750,7 @@ F 3 "" H 3550 5100 50  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L russian-nixies:IN-2 N3
+L 4DigitIN2Display-rescue:IN-2-russian-nixies N3
 U 1 1 5C08A087
 P 5150 5100
 F 0 "N3" V 5100 5250 50  0000 R CNN
@@ -761,7 +761,7 @@ F 3 "" H 5150 5100 50  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L russian-nixies:IN-2 N4
+L 4DigitIN2Display-rescue:IN-2-russian-nixies N4
 U 1 1 5C08A1AE
 P 6750 5100
 F 0 "N4" V 6700 5200 50  0000 R CNN
