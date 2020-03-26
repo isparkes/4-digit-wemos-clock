@@ -1522,7 +1522,6 @@ void loadNumberArrayTime() {
   NumberArray[0] = disp_hour / 10;
 }
 
-
 // ************************************************************
 // Break the minutes and seconds into displayable digits
 // ************************************************************

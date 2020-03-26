@@ -141,8 +141,6 @@
 
 // -------------------------------------------------------------------------------
 // Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
-
-// Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
 #define TEMP_MODE_MIN                   0
 #define TEMP_MODE_SECS                  0 // Display mins and secs
 #define TEMP_MODE_DATE                  1 // Display the date
