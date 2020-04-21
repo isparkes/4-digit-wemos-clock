@@ -49,9 +49,48 @@
 #include "NtpAsync.h"
 #include "HtmlServer.h"
 
-#define DEBUG_OFF
+#define DEBUG
 
 NtpAsync ntpAsync;
+
+#define INT_MUX_FREQUENCY         900
+
+volatile byte digitStep;
+volatile byte timerStep;
+
+ICACHE_RAM_ATTR void displayUpdate() {
+  timerStep++;
+  bool changedOn = false;
+  bool changedOff = false;
+  bool changedSwitched = false;
+  
+  if (timerStep > 20) {
+    timerStep = 0;
+    changedOn = true;
+    
+    digitStep++;
+    if (digitStep > 4) {
+      digitStep = 0;
+    }
+  }
+
+  if (timerStep == 20) {
+    changedOff = true;
+  }  
+
+  if (timerStep == 20) {
+    changedSwitched = true;
+  }  
+
+  if (changedOff) {
+    digitOff(digitStep, NumberArray[digitStep]);
+  } else if (changedSwitched) {
+    digitOn(digitStep, currNumberArray[digitStep]);
+  } else if (changedOn) {
+    digitOn(digitStep, NumberArray[digitStep]);
+  }
+  
+}
 
 //**********************************************************************************
 //**********************************************************************************
@@ -60,6 +99,7 @@ NtpAsync ntpAsync;
 //**********************************************************************************
 void setup()
 {
+  int postStep = 0;
   WiFiManager wifiManager;
 
   // set up the NTP component and wire up the "got time update" callback
@@ -78,25 +118,46 @@ void setup()
   ntpAsync.setDebugOutput(true);
 #endif
 
-  // int postStep = 0;
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++);
 
   // Set up the LED output
   leds.Begin();
 
-  setPinModes();
+  loadNumberArrayPOSTMessage(postStep++);
 
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
-  // loadNumberArrayPOSTMessage(postStep++);
+  
+  loadNumberArrayPOSTMessage(postStep++);
+
+  setPinModes();
+
+  loadNumberArrayPOSTMessage(postStep++);
+  debugMsg("Starting display interrupt handler");
+  
+  timer1_attachInterrupt(displayUpdate); // Add ISR Function
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+  /* Dividers:
+    TIM_DIV1 = 0,   //80MHz (80 ticks/us - 104857.588 us max)
+    TIM_DIV16 = 1,  //5MHz (5 ticks/us - 1677721.4 us max)
+    TIM_DIV256 = 3  //312.5Khz (1 tick = 3.2us - 26843542.4 us max)
+  Reloads:
+    TIM_SINGLE  0 //on interrupt routine you need to write a new value to start the timer again
+    TIM_LOOP  1 //on interrupt the counter will start with the same value again
+  */
+  
+  loadNumberArrayPOSTMessage(postStep++);
+  timer1_write(INT_MUX_FREQUENCY);
+  loadNumberArrayPOSTMessage(postStep++);
 
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
-  // loadNumberArrayPOSTMessage(postStep++);
-  delay(1000);
+  loadNumberArrayPOSTMessage(postStep++);
+  // delay(1000);
 
+  loadNumberArrayPOSTMessage(postStep++);
   for (int i = 0 ; i < 25 ; i++) {
     button1.checkButton(millis());
   }
@@ -107,6 +168,9 @@ void setup()
     ESP.restart();
   }
 
+  loadNumberArrayPOSTMessage(postStep++);
+  
+  debugMsg("Getting SPIFFS");
   if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
     factoryReset();
@@ -392,6 +456,8 @@ void loop()
     pirConsecutiveCounts++;
   }
 
+  delay(10);
+  
   outputDisplay();
 }
 
@@ -1798,49 +1864,39 @@ void outputDisplay() {
     // LEDs off will usually come before the digits off, or be the same 
     ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
 
-    // Main display loop - everything up to now was preparation
-    for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
-      if (timer == ledsOffTime) {
-        ledsOff();
-      }
-      
-      if (timer == digitOffTime) {
-        digitOff(i, NumberArray[i]);
-        doYield();
-      } else if (timer == digitOnTime) {
-        digitOn(i, currNumberArray[i]);
-        ledsOn();
-      } else if (timer == digitSwitchTime) {
-        digitOn(i, NumberArray[i]);
-      }
-    }
+//    // Main display loop - everything up to now was preparation
+//    for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
+//      if (timer == ledsOffTime) {
+//        ledsOff();
+//      }
+//      
+//      if (timer == digitOffTime) {
+//        digitOff(i, NumberArray[i]);
+//        doYield();
+//      } else if (timer == digitOnTime) {
+//        digitOn(i, currNumberArray[i]);
+//        ledsOn();
+//      } else if (timer == digitSwitchTime) {
+//        digitOn(i, NumberArray[i]);
+//      }
+//    }
   }
 }
 
 // ************************************************************
 // Set a digit with the given value, for a given digit
 // ************************************************************
-void digitOn(byte digit, byte value) {
+ICACHE_RAM_ATTR void digitOn(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf) | (anodes[digit] & 0xf0);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
+  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
 }
 
 // ************************************************************
 // Turn the anodes off, but leave the cathodes alone
 // ************************************************************
-void digitOff(byte digit, byte value) {
+ICACHE_RAM_ATTR void digitOff(byte digit, byte value) {
   byte dispValue = (decodeDigit[value] & 0xf);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
-}
-
-// ************************************************************
-// Do some yields after every digit. The number determines
-// the responsiveness of the UI and the blink in the display.
-// ************************************************************
-#define YIELD_COUNT_PER_DIGIT 19
-void doYield() {
-  for (int i = 0 ; i < YIELD_COUNT_PER_DIGIT; i++)
-    yield();
+  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
 }
 
 // ************************************************************
@@ -1862,21 +1918,15 @@ void ledsOff() {
 // ************************************************************
 // Perform the shift out to the shift register
 // ************************************************************
-void shiftOut(uint8_t _loadPin,
+void ICACHE_RAM_ATTR shiftOut(uint8_t _loadPin,
               uint8_t _dataPin1,
               uint8_t _clockPin,
-              uint8_t _bitOrder,
               uint8_t _val1) {
   uint8_t i;
 
   digitalWrite(_loadPin, LOW);
   for (i = 0; i < 8; i++) {
-    if (_bitOrder == LSBFIRST) {
-      digitalWrite(_dataPin1, !!(_val1 & (1 << i)));
-    }
-    else {
-      digitalWrite(_dataPin1, !!(_val1 & (1 << (7 - i))));
-    }
+    digitalWrite(_dataPin1, !!(_val1 & (1 << (7 - i))));
     digitalWrite(_clockPin, HIGH);
     digitalWrite(_clockPin, LOW);
   }
