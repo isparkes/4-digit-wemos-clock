@@ -53,43 +53,30 @@
 
 NtpAsync ntpAsync;
 
+//**********************************************************************************
+//*                               ISR Display Multiplex                            *
+//**********************************************************************************
 #define INT_MUX_FREQUENCY         900
+#define ISR_STEPS                 20
 
-volatile byte digitStep;
-volatile byte timerStep;
+volatile byte digitStep = 0;
+volatile byte timerStep = 1;
 
 ICACHE_RAM_ATTR void displayUpdate() {
-  timerStep++;
-  bool changedOn = false;
-  bool changedOff = false;
-  bool changedSwitched = false;
   
-  if (timerStep > 20) {
-    timerStep = 0;
-    changedOn = true;
+  if (timerStep == switchCount[digitStep])  digitOn (digitStep, currNumberArray[digitStep]);
+  if (timerStep == onCount[digitStep])      digitOn (digitStep, NumberArray[digitStep]);
+  if (timerStep == offCount[digitStep])     digitOff(digitStep, NumberArray[digitStep]);
+  
+  timerStep++;
+  if (timerStep > ISR_STEPS) {
+    timerStep = 1;
     
     digitStep++;
     if (digitStep > 4) {
       digitStep = 0;
     }
   }
-
-  if (timerStep == 20) {
-    changedOff = true;
-  }  
-
-  if (timerStep == 20) {
-    changedSwitched = true;
-  }  
-
-  if (changedOff) {
-    digitOff(digitStep, NumberArray[digitStep]);
-  } else if (changedSwitched) {
-    digitOn(digitStep, currNumberArray[digitStep]);
-  } else if (changedOn) {
-    digitOn(digitStep, NumberArray[digitStep]);
-  }
-  
 }
 
 //**********************************************************************************
@@ -184,6 +171,7 @@ void setup()
   // Clear down any spurious button action
   button1.reset();
 
+  loadNumberArrayPOSTMessage(postStep++);
   testMode = false;
   if (testMode) {
     debugMsg("Doing test sequence");
@@ -253,11 +241,13 @@ void setup()
 
   // **********************************************************************
 
+  loadNumberArrayPOSTMessage(postStep++);
   wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
   wifiManager.setAPCallback(configModeCallback);
 
   setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
-  // loadNumberArrayPOSTMessage(postStep++);
+
+  loadNumberArrayPOSTMessage(postStep++);
 
   boolean connected = false;
   connected = wifiManager.autoConnect(WiFi.hostname().c_str(), "SetMeUp!");
@@ -281,7 +271,7 @@ void setup()
   WiFi.setAutoReconnect(true);
 
   // See if we can already get the time
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++);
   ntpAsync.getTimeFromNTP();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
   long startSeachMs = millis();
@@ -307,16 +297,16 @@ void setup()
   debugMsg("HTTP server started");
 
   // Enable OTA updates
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++);
   httpUpdater.setup(&server, "/update", "admin", "update");
 
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++);
   if (mdns.begin(WiFi.hostname(), WiFi.localIP())) {
     debugMsg("MDNS responder started as http://" + WiFi.hostname() + ".local");
     mdns.addService("http", "tcp", 80);
   }
 
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++);
   setPIRPullup(usePIRPullup);
 
   // initialise the internal time (in case we don't find the time provider)
@@ -349,7 +339,7 @@ void setup()
 
   debugMsg("Exit startup in 1 second");
   getStatsFromSpiffs();
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 }
 
@@ -600,7 +590,7 @@ void setLeds()
   float fixedDim = (float) backlightDimFactor / (float) 100;
   
   // calculate the PWM factor, goes between minDim% and 100%
-  float dimFactor = (float) digitOffCount / (float) DIGIT_DISPLAY_OFF * fixedDim;
+  float dimFactor = (float) digitOffCount / (float) ISR_STEPS * fixedDim;
   
   // Calculate the brightness factor based on the "pulse"
   float pwmFactor = (float) secsDelta / (float) 1000.0;
@@ -1297,7 +1287,7 @@ void processCurrentMode(int displayMode) {
         }
         loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
-        fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
+        fadeStep = ISR_STEPS / fadeSteps;
         break;
       }
     case MODE_FADE_STEPS_DOWN: {
@@ -1309,7 +1299,7 @@ void processCurrentMode(int displayMode) {
         }
         loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
-        fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
+        fadeStep = ISR_STEPS / fadeSteps;
         break;
       }
     case MODE_DISPLAY_SCROLL_STEPS_DOWN: {
@@ -1738,8 +1728,6 @@ void loadNumberArrayPOSTMessage(int postValue) {
 // This is the heart of the display processing!
 // ************************************************************
 void outputDisplay() {
-  int digitOnTime;
-  int digitOffTime;
   int ledsOffTime;
   int digitSwitchTime;
   float digitSwitchTimeFloat;
@@ -1759,38 +1747,38 @@ void outputDisplay() {
       case BLANKED:
         {
           // Setting off = on means we never turn on
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = DIGIT_DISPLAY_ON;
+          onCount[i] = 0;
+          offCount[i] = 0;
           break;
         }
       case DIMMED:
         {
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = DIM_VALUE;
+          onCount[i] = 1;
+          offCount[i] = 8;
           break;
         }
       case BRIGHT:
         {
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = DIGIT_DISPLAY_OFF;
+          onCount[i] = 1;
+          offCount[i] = ISR_STEPS;
           break;
         }
       case FADE:
       case NORMAL:
       case SCROLL:
         {
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = digitOffCount;
+          onCount[i] = 1;
+          offCount[i] = digitOffCount;
           break;
         }
       case BLINK:
         {
           if (blinkState) {
-            digitOnTime = DIGIT_DISPLAY_ON;
-            digitOffTime = digitOffCount;
+            onCount[i] = 1;
+            offCount[i] = digitOffCount;
           } else {
-            digitOnTime = DIGIT_DISPLAY_NEVER;
-            digitOffTime = DIGIT_DISPLAY_OFF;
+            onCount[i] = 0;
+            offCount[i] = 0;
           }
           break;
         }
@@ -1806,13 +1794,13 @@ void outputDisplay() {
     // --------------------- Scroll ---------------------
 
     // manage scrolling, each impression we show 1 fade step less of the old
-    // digit and 1 fade step more of the new
+    // digit and 1 fade step more of the new. We hold the 
     if (tmpDispType == SCROLL) {
-      digitSwitchTime = DIGIT_DISPLAY_NEVER;
       if (NumberArray[i] != currNumberArray[i]) {
         if (fadeState[i] == 0) {
           // Start the fade
           fadeState[i] = scrollSteps;
+          switchCount[i] = 1;
         }
 
         if (fadeState[i] == 1) {
@@ -1822,6 +1810,7 @@ void outputDisplay() {
         } else if (fadeState[i] > 1) {
           // Continue the scroll countdown
           fadeState[i] = fadeState[i] - 1;
+          switchCount[i] = 1;
         }
       }
     } else
@@ -1831,14 +1820,12 @@ void outputDisplay() {
       // manage fading, each impression we show 1 fade step less of the old
       // digit and 1 fade step more of the new
       if (tmpDispType == FADE) {
-        float countsPerStep = (digitOffTime - digitOnTime) / fadeSteps;
-
         if (NumberArray[i] != currNumberArray[i]) {
           // Start the fade
           if (fadeState[i] == 0) {
             // Start the fade
             fadeState[i] = fadeSteps;
-            digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
+            switchCount[i] = 1;
           }
         }
 
@@ -1846,40 +1833,23 @@ void outputDisplay() {
           // finish the fade
           fadeState[i] = 0;
           currNumberArray[i] = NumberArray[i];
-          digitSwitchTime = digitOffTime;
+          digitSwitchTime = digitOffCount;
         } else if (fadeState[i] > 1) {
           // Continue the fade
           fadeState[i] = fadeState[i] - 1;
-          digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
+          switchCount[i] = switchCount[i] + 1;
         }
       } else
 
         // --------------------- Normal ---------------------
 
       {
-        digitSwitchTime = DIGIT_DISPLAY_NEVER;
+        digitSwitchTime = 99;
         currNumberArray[i] = NumberArray[i];
       }
 
     // LEDs off will usually come before the digits off, or be the same 
     ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
-
-//    // Main display loop - everything up to now was preparation
-//    for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
-//      if (timer == ledsOffTime) {
-//        ledsOff();
-//      }
-//      
-//      if (timer == digitOffTime) {
-//        digitOff(i, NumberArray[i]);
-//        doYield();
-//      } else if (timer == digitOnTime) {
-//        digitOn(i, currNumberArray[i]);
-//        ledsOn();
-//      } else if (timer == digitSwitchTime) {
-//        digitOn(i, NumberArray[i]);
-//      }
-//    }
   }
 }
 
@@ -2488,20 +2458,23 @@ void setRTCTime() {
 int getDimmingFromLDR() {
   if (useLDR) {
     int rawLDR = analogRead(LDRPin);
-    if (rawLDR < 100) rawLDR = 100;
-    if (rawLDR > 1000) rawLDR = 1000;
-    int rawSensorVal = 1100 - rawLDR;
+    int rawSensorVal = 1023 - rawLDR;
 
     double sensorDiff = rawSensorVal - sensorLDRSmoothed;
     sensorLDRSmoothed += (sensorDiff / (double)sensorSmoothCountLDR);
 
-    int returnValue = (sensorLDRSmoothed - dimDark) * sensorFactor;
+    // Scaling offset increases the base brightness
+    // factor increases the sensitivity
+    double offset = 20.0;
+    double factor = 120.0 / 5.0;
+    
+    int returnValue = (sensorLDRSmoothed + offset) / factor;
 
     if (returnValue < minDim) returnValue = minDim;
-    if (returnValue > DIGIT_DISPLAY_OFF) returnValue = DIGIT_DISPLAY_OFF;
+    if (returnValue > ISR_STEPS) returnValue = ISR_STEPS;
     return returnValue;
   } else {
-    return DIGIT_DISPLAY_OFF;
+    return ISR_STEPS;
   }
 }
 
@@ -2917,7 +2890,7 @@ void rootPageHandler() {
   response_message += getTableFoot();
 
   // ******************** Clock Info table ***************************
-  float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
+  float digitBrightness = digitOffCount * 100.0 / (float) ISR_STEPS;
   String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
   String rtcState = useRTC ? "Installed" : "Not installed";
   String timeSource;
@@ -2939,6 +2912,8 @@ void rootPageHandler() {
   }
 
   response_message += getTableRow2Col("Digit brightness %", String(digitBrightness, 2));
+  response_message += getTableRow2Col("On Count", String(onCount[0]) + "," + String(onCount[1]) + "," + String(onCount[2]) + "," + String(onCount[3]));
+  response_message += getTableRow2Col("Off Count", String(offCount[0]) + "," + String(offCount[1]) + "," + String(offCount[2]) + "," + String(offCount[3]));
   response_message += getTableRow2Col("Motion Sensor", motionSensorState);
   response_message += getTableRow2Col("Time Source", timeSource);
   response_message += getTableRow2Col("Display Time", currentTime);

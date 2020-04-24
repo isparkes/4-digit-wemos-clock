@@ -24,9 +24,9 @@
 #define SOFTWARE_VERSION      4
 
 // -------------------------------------------------------------------------------
-#define MIN_DIM_DEFAULT       500  // The default minimum dim count
-#define MIN_DIM_MIN           100  // The minimum dim count
-#define MIN_DIM_MAX           1000 // The maximum dim count
+#define MIN_DIM_DEFAULT       4  // The default minimum dim count
+#define MIN_DIM_MIN           2  // The minimum dim count
+#define MIN_DIM_MAX           20 // The maximum dim count
 
 // -------------------------------------------------------------------------------
 #define SENSOR_LOW_MIN        0

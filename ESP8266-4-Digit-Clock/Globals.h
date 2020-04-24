@@ -21,9 +21,14 @@ ClockButton button1(inputPin1, true);   // Clock button debounce and handling
 
 // ------------------ Display Variables ----------------
 
+#define ISR_STEPS   20
+
 byte NumberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte currNumberArray[DIGIT_COUNT]      = {0, 0, 0, 0};
 byte displayType[DIGIT_COUNT]          = {FADE, FADE, FADE, FADE};
+byte onCount[DIGIT_COUNT]              = {1, 1, 1, 1};
+byte offCount[DIGIT_COUNT]             = {ISR_STEPS, ISR_STEPS, ISR_STEPS, ISR_STEPS};
+byte switchCount[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte fadeState[DIGIT_COUNT]            = {0, 0, 0, 0};
 byte valueDisplayTime                  = 0;
 int valueToShow                        = 0;
@@ -37,14 +42,12 @@ int minDim = MIN_DIM_DEFAULT;
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
 // 350 is about 1 second
 int fadeSteps = FADE_STEPS_DEFAULT;
-
-int digitOffCount = DIGIT_DISPLAY_OFF;
+int digitOffCount = ISR_STEPS;
 int scrollSteps = SCROLL_STEPS_DEFAULT;
 boolean scrollback = true;
 boolean fade = true;
 byte antiGhost = ANTI_GHOST_DEFAULT;
-int dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
-float fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
+float fadeStep = ISR_STEPS / fadeSteps;
 byte dayBlanking = DAY_BLANKING_DEFAULT;
 byte blankHourStart = 0;
 byte blankHourEnd = 0;
@@ -124,7 +127,6 @@ boolean blankLEDs = false;
 int dimDark = SENSOR_LOW_DEFAULT;
 int dimBright = SENSOR_HIGH_DEFAULT;
 double sensorLDRSmoothed = 0;
-double sensorFactor = (double)(DIGIT_DISPLAY_OFF) / (double)(dimBright - dimDark);
 int sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
 
 boolean blinkState;
