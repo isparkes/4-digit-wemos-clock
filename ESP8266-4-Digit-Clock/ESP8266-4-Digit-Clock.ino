@@ -63,17 +63,19 @@ volatile byte digitStep = 0;
 volatile byte timerStep = 1;
 
 ICACHE_RAM_ATTR void displayUpdate() {
-  
-  if (timerStep == switchCount[digitStep]) digitOn (digitStep, currNumberArray[digitStep]);
+
+  if (timerStep == offCount[digitStep]) {digitOff(digitStep, NumberArray[digitStep]);}
+  else if (timerStep == switchCount[digitStep]) digitOn (digitStep, currNumberArray[digitStep]);
   else if (timerStep == onCount[digitStep]) {
     digitOn (digitStep, NumberArray[digitStep]);
     ledsOn();
-  } else if (timerStep == offCount[digitStep]) digitOff(digitStep, NumberArray[digitStep]);
+  } 
 
   if (timerStep == ledsOffTime) {
     ledsOff();
   }
-  
+
+  // Update timers
   timerStep++;
   if (timerStep > ISR_STEPS) {
     timerStep = 1;
@@ -1753,7 +1755,7 @@ void outputDisplay() {
         {
           // Setting off = on means we never turn on
           onCount[i] = 0;
-          offCount[i] = 0;
+          offCount[i] = 1;
           break;
         }
       case DIMMED:
@@ -1831,9 +1833,7 @@ void outputDisplay() {
         if (NumberArray[i] != currNumberArray[i]) {
           // Start the fade
           if (fadeState[i] == 0) {
-            // Start the fade
             fadeState[i] = fadeSteps;
-            switchCount[i] = 1;
           }
         }
 
@@ -1841,19 +1841,19 @@ void outputDisplay() {
           // finish the fade
           fadeState[i] = 0;
           currNumberArray[i] = NumberArray[i];
-          digitSwitchTime = digitOffCount;
         } else if (fadeState[i] > 1) {
           // Continue the fade
           fadeState[i] = fadeState[i] - 1;
-          switchCount[i] = switchCount[i] + 1;
+          digitSwitchTimeFloat = (float) offCount[i] * (float) fadeState[i] / (float) fadeSteps;
+          switchCount[i] = (byte) digitSwitchTimeFloat;
         }
       } else
 
         // --------------------- Normal ---------------------
 
       {
-        digitSwitchTime = 99;
-        currNumberArray[i] = NumberArray[i];
+        // don't do switching or scrolling
+        switchCount[i] = 0;
       }
 
     // LEDs off will usually come before the digits off, or be the same 
