@@ -33,6 +33,7 @@ byte fadeState[DIGIT_COUNT]            = {0, 0, 0, 0};
 byte valueDisplayTime                  = 0;
 int valueToShow                        = 0;
 byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL << 4, NORMAL | NORMAL << 4}; // All normal by default
+byte ledsOffTime;
 
 // ------------------- Config Variables ----------------
 

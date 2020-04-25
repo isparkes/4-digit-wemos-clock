@@ -65,8 +65,15 @@ volatile byte timerStep = 1;
 ICACHE_RAM_ATTR void displayUpdate() {
   
   if (timerStep == switchCount[digitStep])  digitOn (digitStep, currNumberArray[digitStep]);
-  if (timerStep == onCount[digitStep])      digitOn (digitStep, NumberArray[digitStep]);
-  if (timerStep == offCount[digitStep])     digitOff(digitStep, NumberArray[digitStep]);
+  if (timerStep == onCount[digitStep]) {
+    digitOn (digitStep, NumberArray[digitStep]);
+    ledsOn();
+  }
+  if (timerStep == offCount[digitStep]) digitOff(digitStep, NumberArray[digitStep]);
+
+  if (timerStep == ledsOffTime) {
+    ledsOff();
+  }
   
   timerStep++;
   if (timerStep > ISR_STEPS) {
@@ -1728,7 +1735,6 @@ void loadNumberArrayPOSTMessage(int postValue) {
 // This is the heart of the display processing!
 // ************************************************************
 void outputDisplay() {
-  int ledsOffTime;
   int digitSwitchTime;
   float digitSwitchTimeFloat;
   int tmpDispType;
@@ -1850,6 +1856,7 @@ void outputDisplay() {
 
     // LEDs off will usually come before the digits off, or be the same 
     ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
+    if (ledsOffTime < minDim) ledsOffTime = minDim;
   }
 }
 
@@ -1872,7 +1879,7 @@ ICACHE_RAM_ATTR void digitOff(byte digit, byte value) {
 // ************************************************************
 // Turn the separator LEDs on
 // ************************************************************
-void ledsOn() {
+ICACHE_RAM_ATTR void ledsOn() {
   digitalWrite(LEDPin1, led1State);
   digitalWrite(LEDPin2, led2State);
 }
@@ -1880,7 +1887,7 @@ void ledsOn() {
 // ************************************************************
 // Turn the separator LEDs off
 // ************************************************************
-void ledsOff() {
+ICACHE_RAM_ATTR void ledsOff() {
   digitalWrite(LEDPin1, LOW);
   digitalWrite(LEDPin2, LOW);
 }
