@@ -64,12 +64,11 @@ volatile byte timerStep = 1;
 
 ICACHE_RAM_ATTR void displayUpdate() {
   
-  if (timerStep == switchCount[digitStep])  digitOn (digitStep, currNumberArray[digitStep]);
-  if (timerStep == onCount[digitStep]) {
+  if (timerStep == switchCount[digitStep]) digitOn (digitStep, currNumberArray[digitStep]);
+  else if (timerStep == onCount[digitStep]) {
     digitOn (digitStep, NumberArray[digitStep]);
     ledsOn();
-  }
-  if (timerStep == offCount[digitStep]) digitOff(digitStep, NumberArray[digitStep]);
+  } else if (timerStep == offCount[digitStep]) digitOff(digitStep, NumberArray[digitStep]);
 
   if (timerStep == ledsOffTime) {
     ledsOff();
@@ -1791,10 +1790,12 @@ void outputDisplay() {
     }
 
     // Do scrollback when we are going to 0
-    if ((NumberArray[i] != currNumberArray[i]) &&
-        (NumberArray[i] == 0) &&
-        scrollback) {
-      tmpDispType = SCROLL;
+    if (NumberArray[i] != currNumberArray[i]) {
+      if ((NumberArray[i] == 0) && scrollback) {
+        tmpDispType = SCROLL;
+      } else {
+        currNumberArray[i] = NumberArray[i];
+      }
     }
 
     // --------------------- Scroll ---------------------
@@ -1806,7 +1807,6 @@ void outputDisplay() {
         if (fadeState[i] == 0) {
           // Start the fade
           fadeState[i] = scrollSteps;
-          switchCount[i] = 1;
         }
 
         if (fadeState[i] == 1) {
@@ -1816,9 +1816,11 @@ void outputDisplay() {
         } else if (fadeState[i] > 1) {
           // Continue the scroll countdown
           fadeState[i] = fadeState[i] - 1;
-          switchCount[i] = 1;
         }
       }
+      // Ensure we show the current number, not the target number
+      switchCount[i] = 1;
+
     } else
 
       // --------------------- Fade ---------------------
