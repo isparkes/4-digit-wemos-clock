@@ -56,34 +56,182 @@ NtpAsync ntpAsync;
 //**********************************************************************************
 //*                               ISR Display Multiplex                            *
 //**********************************************************************************
-#define INT_MUX_FREQUENCY         900
-#define ISR_STEPS                 20
+#define INT_MUX_COUNTS         800
+#define COUNTS_PER_DIGIT       20
+
+#define NEXT_DIGIT    B00000000
+#define SWCH_DIGIT    B01000000
+#define OFF__DIGIT    B10000000
+#define BLNK_DIGIT    B11000000
 
 volatile byte digitStep = 0;
-volatile byte timerStep = 1;
+volatile byte phaseStep = 0;
 
+// Overall Phase array
+byte phaseTime[][4] = {{ 0, 0, 0, 0},
+                       { 0, 0, 0, 0},
+                       { 0, 0, 0, 0}};
+
+// Cached values for this digit: updated only between digits
+byte ptCache[] = {20 | NEXT_DIGIT, 0, 0};
+byte na = 0;
+byte cna = 0;
+
+// ************************************************************
+// Set a digit with the given value, for a given digit
+// ************************************************************
+ICACHE_RAM_ATTR void digitOn(byte digit, byte value) {
+  byte dispValue = value | anodes[digit];
+  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
+}
+
+// ************************************************************
+// Turn the anodes off, but leave the cathodes alone
+// ************************************************************
+ICACHE_RAM_ATTR void digitOff(byte digit, byte value) {
+  byte dispValue = value;
+  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
+}
+
+// ************************************************************
+// Perform the shift out to the shift register
+// ************************************************************
+ICACHE_RAM_ATTR void shiftOut(uint8_t _loadPin,
+              uint8_t _dataPin1,
+              uint8_t _clockPin,
+              uint8_t _val1) {
+  uint8_t i;
+
+  digitalWrite(_loadPin, LOW);
+  for (i = 0; i < 8; i++) {
+    digitalWrite(_dataPin1, !!(_val1 & (1 << (7 - i))));
+    digitalWrite(_clockPin, HIGH);
+    digitalWrite(_clockPin, LOW);
+  }
+  digitalWrite(_loadPin, HIGH);
+}
+
+// ************************************************************
+// Interrupt routine for scheduled interrupts
+//  - performs the programmed action and then schedules the next
+//    interrupt for the next display update
+//   - Each digit can consist of up to 3 phases:
+//     1 - turn on for the "fade from" digit
+//     2 - switch to the "fade to" digit
+//     3 - turn the digit off
+// ************************************************************
 ICACHE_RAM_ATTR void displayUpdate() {
+  byte phT = ptCache[phaseStep];
+  
+  unsigned int nextIntTime = phT & 0x3f;
+  byte nextPhase = phT >> 6;
 
-  if (timerStep == offCount[digitStep]) {digitOff(digitStep, NumberArray[digitStep]);}
-  else if (timerStep == switchCount[digitStep]) digitOn (digitStep, currNumberArray[digitStep]);
-  else if (timerStep == onCount[digitStep]) {
-    digitOn (digitStep, NumberArray[digitStep]);
-    ledsOn();
-  } 
-
-  if (timerStep == ledsOffTime) {
-    ledsOff();
+  // deal with "Blank this digit" - don't turn on at all - instead turn off and wait
+  if (nextPhase == 3) {
+    phaseStep = 2;
+    nextPhase = NEXT_DIGIT;
   }
 
-  // Update timers
-  timerStep++;
-  if (timerStep > ISR_STEPS) {
-    timerStep = 1;
-    
+  switch (phaseStep) {
+    case 0: {
+      // digitOn(digitStep, NumberArray[digitStep]);
+      digitOn(digitStep, na);
+      break;
+    }
+    case 1: {
+      // digitOn(digitStep, currNumberArray[digitStep]);
+      digitOn(digitStep, cna);
+      break;
+    }
+    case 2: {
+      // digitOff(digitStep, NumberArray[digitStep]);
+      digitOff(digitStep, na);
+      break;
+    }
+  }
+
+  phaseStep = nextPhase;
+  if (phaseStep == 0) {
     digitStep++;
-    if (digitStep > 4) {
+    if (digitStep > 3) {
       digitStep = 0;
     }
+
+    // get the cached values when we change digit
+    ptCache[0] = phaseTime[0][digitStep];
+    ptCache[1] = phaseTime[1][digitStep];
+    ptCache[2] = phaseTime[2][digitStep];
+    na = numberArray[digitStep];
+    cna = currNumberArray[digitStep];
+  }
+
+  timer1_write(nextIntTime * INT_MUX_COUNTS);
+}
+
+// ************************************************************
+// Set the schedule for a single digit
+// dimValue:   1..COUNTS_PER_DIGIT : COUNTS_PER_DIGIT = not dimmed
+// switchTime: 0..COUNTS_PER_DIGIT-1 : 0 = no switch (undimmed)
+// switchTime: 0..dimValue-1 : 0 = no switch (dimmed)
+// ************************************************************
+void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switchTime, bool blanked) {
+  numberArray[digit] = decodeDigit[value%10];
+  currNumberArray[digit] = decodeDigit[currValue%10];
+
+  if (dimFactor < 1) {
+    dimFactor = 1; 
+  }
+  
+  if (dimFactor > COUNTS_PER_DIGIT) {
+    dimFactor = COUNTS_PER_DIGIT;
+  }
+  
+  if (switchTime >= dimFactor) {
+    switchTime = dimFactor - 1;
+    if (switchTime < 1) {
+      // can't show fading when we are so dim
+      switchTime = 0;
+    }
+  }
+
+  // Don't switch if the old and the new are the same
+  if ((switchTime > 0) && (value == currValue)) {
+    switchTime = 0;
+  }
+
+  if (blanked) {
+    // blank in Ph0
+    phaseTime[0][digit] = COUNTS_PER_DIGIT | BLNK_DIGIT;
+    phaseTime[1][digit] = 0;
+    phaseTime[2][digit] = 0;      
+  } else {
+    // Undimmed
+    if (dimFactor == COUNTS_PER_DIGIT) {
+      if (switchTime == 0) {
+        // simplest case, full brightness no switch, we just deal with Ph0
+        phaseTime[0][digit] = COUNTS_PER_DIGIT | NEXT_DIGIT;
+        phaseTime[1][digit] = 0;
+        phaseTime[2][digit] = 0;      
+      } else {
+        // doing a switch at full brightness, use Ph0 and Ph1
+        phaseTime[0][digit] = switchTime | SWCH_DIGIT;
+        phaseTime[1][digit] = (COUNTS_PER_DIGIT - switchTime) | NEXT_DIGIT;
+        phaseTime[2][digit] = 0;      
+      }
+    } else {
+      // Dimmed
+      if (switchTime == 0) {
+        // dimmed no switch, use Ph0 and Ph2
+        phaseTime[0][digit] = dimFactor | OFF__DIGIT;
+        phaseTime[1][digit] = 0;
+        phaseTime[2][digit] = (COUNTS_PER_DIGIT - dimFactor) | NEXT_DIGIT;      
+      } else {
+        // doing a switch while dimmed, use Ph0, Ph1 and Ph2
+        phaseTime[0][digit] = switchTime | SWCH_DIGIT;
+        phaseTime[1][digit] = (dimFactor - switchTime) | OFF__DIGIT;
+        phaseTime[2][digit] = (COUNTS_PER_DIGIT - dimFactor) | NEXT_DIGIT;      
+      }
+    }    
   }
 }
 
@@ -132,7 +280,7 @@ void setup()
   debugMsg("Starting display interrupt handler");
   
   timer1_attachInterrupt(displayUpdate); // Add ISR Function
-  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);
   /* Dividers:
     TIM_DIV1 = 0,   //80MHz (80 ticks/us - 104857.588 us max)
     TIM_DIV16 = 1,  //5MHz (5 ticks/us - 1677721.4 us max)
@@ -143,7 +291,7 @@ void setup()
   */
   
   loadNumberArrayPOSTMessage(postStep++);
-  timer1_write(INT_MUX_FREQUENCY);
+  timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
   loadNumberArrayPOSTMessage(postStep++);
 
   button1.reset();
@@ -454,7 +602,7 @@ void loop()
     pirConsecutiveCounts++;
   }
 
-  delay(10);
+  delay(100);
   
   outputDisplay();
 }
@@ -709,17 +857,17 @@ void setLeds()
         break;
       case BACKLIGHT_COLOUR_TIME:
         for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, fixedDim);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, fixedDim);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, fixedDim);
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[numberArray[i]], 1, fixedDim);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[numberArray[i]], 1, fixedDim);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[numberArray[i]], 1, fixedDim);
         }
         outputLEDBuffer();
         break;
       case BACKLIGHT_COLOUR_TIME_DIM:
         for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, dimFactor);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, dimFactor);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, dimFactor);
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[numberArray[i]], 1, dimFactor);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[numberArray[i]], 1, dimFactor);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[numberArray[i]], 1, dimFactor);
         }
         outputLEDBuffer();
         break;
@@ -1580,38 +1728,59 @@ void cycleColours3(int colors[3]) {
 // Break the time into displayable digits
 // ************************************************************
 void loadNumberArrayTime() {
-  NumberArray[3] = disp_min % 10;
-  NumberArray[2] = disp_min / 10;
-  NumberArray[1] = disp_hour % 10;
-  NumberArray[0] = disp_hour / 10;
+  byte d0 = disp_hour / 10;
+  byte d1 = disp_hour % 10;
+  byte d2 = disp_min / 10;
+  byte d3 = disp_min % 10;
+  
+  setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
+  setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
+  setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
+  setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
 }
 
 // ************************************************************
 // Break the minutes and seconds into displayable digits
 // ************************************************************
 void loadNumberArrayMinsSecs() {
-  NumberArray[3] = disp_sec % 10;
-  NumberArray[2] = disp_sec / 10;
-  NumberArray[1] = disp_min % 10;
-  NumberArray[0] = disp_min / 10;
+  byte d0 = disp_min / 10;
+  byte d1 = disp_min % 10;
+  byte d2 = disp_sec / 10;
+  byte d3 = disp_sec % 10;
+  
+  setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
+  setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
+  setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
+  setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
 }
 
 // ************************************************************
 // Break the date into displayable digits, respecting date format
 // ************************************************************
 void loadNumberArrayDayMonth() {
+  byte d0, d1, d2, d3;
   switch (dateFormat) {
     case DATE_FORMAT_MMDD:
-      NumberArray[3] = disp_day % 10;
-      NumberArray[2] = disp_day / 10;
-      NumberArray[1] = disp_month % 10;
-      NumberArray[0] = disp_month / 10;
+      d0 = disp_month / 10;
+      d1 = disp_month % 10;
+      d2 = disp_day / 10;
+      d3 = disp_day % 10;
+      
+      setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
+      setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
+      setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
+      setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
       break;
     case DATE_FORMAT_DDMM:
-      NumberArray[3] = disp_month % 10;
-      NumberArray[2] = disp_month / 10;
-      NumberArray[1] = disp_day % 10;
-      NumberArray[0] = disp_day / 10;
+      d0 = disp_day / 10;
+      d1 = disp_day % 10;
+      d2 = disp_month / 10;
+      d3 = disp_month % 10;
+      
+      setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
+      setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
+      setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
+      setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
       break;
   }
 }
@@ -1620,60 +1789,64 @@ void loadNumberArrayDayMonth() {
 // Break the year into displayable digits
 // ************************************************************
 void loadNumberArrayYear() {
-  NumberArray[3] = (year() / 1) % 10;
-  NumberArray[2] = (year() / 10) % 10;
-  NumberArray[1] = (year() / 100) % 10;
-  NumberArray[0] = (year() / 1000) % 10;
+  numberArray[3] = (year() / 1) % 10;
+  numberArray[2] = (year() / 10) % 10;
+  numberArray[1] = (year() / 100) % 10;
+  numberArray[0] = (year() / 1000) % 10;
 }
 
 // ************************************************************
 // Break the LDR reading into displayable digits
 // ************************************************************
 void loadNumberArrayLDR() {
-  NumberArray[3] = (digitOffCount / 1) % 10;
-  NumberArray[2] = (digitOffCount / 10) % 10;
-  NumberArray[1] = (digitOffCount / 100) % 10;
-  NumberArray[0] = (digitOffCount / 1000) % 10;
+  numberArray[3] = (digitOffCount / 1) % 10;
+  numberArray[2] = (digitOffCount / 10) % 10;
+  numberArray[1] = (digitOffCount / 100) % 10;
+  numberArray[0] = (digitOffCount / 1000) % 10;
 }
 
 // ************************************************************
 // Test digits
 // ************************************************************
 void loadNumberArrayTestDigits() {
-  NumberArray[3] = second() % 10;
-  NumberArray[2] = second() % 10;
-  NumberArray[1] = second() % 10;
-  NumberArray[0] = second() % 10;
+  numberArray[3] = second() % 10;
+  numberArray[2] = second() % 10;
+  numberArray[1] = second() % 10;
+  numberArray[0] = second() % 10;
 }
 
 // ************************************************************
 // Show an integer configuration value
 // ************************************************************
 void loadNumberArrayConfInt(int confValue, byte mode) {
-  NumberArray[3] = (confValue / 1) % 10;
-  NumberArray[2] = (confValue / 10) % 10;
-  NumberArray[1] = mode % 10;
-  NumberArray[0] = mode / 10;
+  numberArray[3] = (confValue / 1) % 10;
+  numberArray[2] = (confValue / 10) % 10;
+  numberArray[1] = mode % 10;
+  numberArray[0] = mode / 10;
 }
 
 // ************************************************************
 // Show an integer configuration value, use all 4 digits
 // ************************************************************
 void loadNumberArrayConfIntWide(int confValue) {
-  NumberArray[3] = (confValue / 1) % 10;
-  NumberArray[2] = (confValue / 10) % 10;
-  NumberArray[1] = (confValue / 100) % 10;
-  NumberArray[0] = (confValue / 1000) % 10;
+  byte d0 = (confValue / 1000) % 10;
+  byte d1 = (confValue / 100) % 10;
+  byte d2 = (confValue / 10) % 10;
+  byte d3 = (confValue / 1) % 10;
+  setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
+  setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
+  setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
+  setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
 }
 
 // ************************************************************
 // Show an configuration mode value
 // ************************************************************
 void loadNumberArrayConfMode(byte mode) {
-  NumberArray[3] = (mode / 1) % 10;
-  NumberArray[2] = (mode / 10) % 10;
-  NumberArray[1] = 0;
-  NumberArray[0] = 0;
+  numberArray[3] = (mode / 1) % 10;
+  numberArray[2] = (mode / 10) % 10;
+  numberArray[1] = 0;
+  numberArray[0] = 0;
 }
 
 // ************************************************************
@@ -1686,30 +1859,30 @@ void loadNumberArrayConfBool(boolean confValue, byte mode) {
   } else {
     boolInt = 0;
   }
-  NumberArray[3] = boolInt;
-  NumberArray[2] = 0;
-  NumberArray[1] = mode % 10;
-  NumberArray[0] = mode / 10;
+  numberArray[3] = boolInt;
+  numberArray[2] = 0;
+  numberArray[1] = mode % 10;
+  numberArray[0] = mode / 10;
 }
 
 // ************************************************************
 // Show an 1/4 IP configuration value
 // ************************************************************
 void loadNumberArrayIP(byte byte1) {
-  NumberArray[3] = (byte1) % 10;
-  NumberArray[2] = (byte1 / 10) % 10;
-  NumberArray[1] = (byte1 / 100) % 10;
-  NumberArray[0] = 0;
+  numberArray[3] = (byte1) % 10;
+  numberArray[2] = (byte1 / 10) % 10;
+  numberArray[1] = (byte1 / 100) % 10;
+  numberArray[0] = 0;
 }
 
 // ************************************************************
 // Show the same value on all digits
 // ************************************************************
 void loadNumberArraySameValue(byte val) {
-  NumberArray[3] = val;
-  NumberArray[2] = val;
-  NumberArray[1] = val;
-  NumberArray[0] = val;
+  numberArray[3] = val;
+  numberArray[2] = val;
+  numberArray[1] = val;
+  numberArray[0] = val;
 }
 
 // ************************************************************
@@ -1736,8 +1909,6 @@ void loadNumberArrayPOSTMessage(int postValue) {
 // This is the heart of the display processing!
 // ************************************************************
 void outputDisplay() {
-  int digitSwitchTime;
-  float digitSwitchTimeFloat;
   int tmpDispType;
 
   // used to blank all leading digits if 0
@@ -1754,49 +1925,47 @@ void outputDisplay() {
       case BLANKED:
         {
           // Setting off = on means we never turn on
-          onCount[i] = 0;
-          offCount[i] = 1;
+//          onCount[i] = 0;
+//          offCount[i] = 1;
           break;
         }
       case DIMMED:
         {
-          onCount[i] = 1;
-          offCount[i] = 8;
+//          onCount[i] = 1;
+//          offCount[i] = 8;
           break;
         }
       case BRIGHT:
         {
-          onCount[i] = 1;
-          offCount[i] = ISR_STEPS;
+//          onCount[i] = 1;
+//          offCount[i] = ISR_STEPS;
           break;
         }
       case FADE:
       case NORMAL:
       case SCROLL:
         {
-          onCount[i] = 1;
-          offCount[i] = digitOffCount;
+//          onCount[i] = 1;
+//          offCount[i] = digitOffCount;
           break;
         }
       case BLINK:
         {
           if (blinkState) {
-            onCount[i] = 1;
-            offCount[i] = digitOffCount;
+//            onCount[i] = 1;
+//            offCount[i] = digitOffCount;
           } else {
-            onCount[i] = 0;
-            offCount[i] = 0;
+//            onCount[i] = 0;
+//            offCount[i] = 0;
           }
           break;
         }
     }
 
     // Do scrollback when we are going to 0
-    if (NumberArray[i] != currNumberArray[i]) {
-      if ((NumberArray[i] == 0) && scrollback) {
+    if (numberArray[i] != currNumberArray[i]) {
+      if ((numberArray[i] == 0) && scrollback) {
         tmpDispType = SCROLL;
-      } else {
-        currNumberArray[i] = NumberArray[i];
       }
     }
 
@@ -1805,7 +1974,7 @@ void outputDisplay() {
     // manage scrolling, each impression we show 1 fade step less of the old
     // digit and 1 fade step more of the new. We hold the 
     if (tmpDispType == SCROLL) {
-      if (NumberArray[i] != currNumberArray[i]) {
+      if (numberArray[i] != currNumberArray[i]) {
         if (fadeState[i] == 0) {
           // Start the fade
           fadeState[i] = scrollSteps;
@@ -1819,10 +1988,9 @@ void outputDisplay() {
           // Continue the scroll countdown
           fadeState[i] = fadeState[i] - 1;
         }
+        // Ensure we show the current number, not the target number
+//        switchCount[i] = 1;
       }
-      // Ensure we show the current number, not the target number
-      switchCount[i] = 1;
-
     } else
 
       // --------------------- Fade ---------------------
@@ -1830,22 +1998,24 @@ void outputDisplay() {
       // manage fading, each impression we show 1 fade step less of the old
       // digit and 1 fade step more of the new
       if (tmpDispType == FADE) {
-        if (NumberArray[i] != currNumberArray[i]) {
+        if (numberArray[i] != currNumberArray[i]) {
           // Start the fade
           if (fadeState[i] == 0) {
             fadeState[i] = fadeSteps;
+            debugMsg("StartFade");
+//            switchCount[i] = getSwitchTime(offCount[i], fadeState[i], fadeSteps);
+          } else if (fadeState[i] == 1) {
+            // finish the fade
+            fadeState[i] = 0;
+            currNumberArray[i] = numberArray[i];
+//            switchCount[i] = 0;
+            debugMsg("End Fade");
+          } else if (fadeState[i] > 1) {
+            // Continue the fade
+            debugMsg("Cont: N: " + String(numberArray[i]) + " C: " + String(currNumberArray[i]) );
+            fadeState[i] = fadeState[i] - 1;
+//            switchCount[i] = getSwitchTime(offCount[i], fadeState[i], fadeSteps);
           }
-        }
-
-        if (fadeState[i] == 1) {
-          // finish the fade
-          fadeState[i] = 0;
-          currNumberArray[i] = NumberArray[i];
-        } else if (fadeState[i] > 1) {
-          // Continue the fade
-          fadeState[i] = fadeState[i] - 1;
-          digitSwitchTimeFloat = (float) offCount[i] * (float) fadeState[i] / (float) fadeSteps;
-          switchCount[i] = (byte) digitSwitchTimeFloat;
         }
       } else
 
@@ -1853,7 +2023,7 @@ void outputDisplay() {
 
       {
         // don't do switching or scrolling
-        switchCount[i] = 0;
+//        switchCount[i] = 0;
       }
 
     // LEDs off will usually come before the digits off, or be the same 
@@ -1862,20 +2032,14 @@ void outputDisplay() {
   }
 }
 
-// ************************************************************
-// Set a digit with the given value, for a given digit
-// ************************************************************
-ICACHE_RAM_ATTR void digitOn(byte digit, byte value) {
-  byte dispValue = (decodeDigit[value] & 0xf) | (anodes[digit] & 0xf0);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
-}
+byte getSwitchTime(byte offCount, byte fadeState, byte fadeSteps) {
+  float digitSwitchTimeFloat;
+  digitSwitchTimeFloat = (float) offCount * (float) (offCount - fadeState) / (float) fadeSteps;
+  byte result = (byte) digitSwitchTimeFloat;
 
-// ************************************************************
-// Turn the anodes off, but leave the cathodes alone
-// ************************************************************
-ICACHE_RAM_ATTR void digitOff(byte digit, byte value) {
-  byte dispValue = (decodeDigit[value] & 0xf);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
+  debugMsg("result: " + String(result));
+  
+  return result;
 }
 
 // ************************************************************
@@ -1895,24 +2059,6 @@ ICACHE_RAM_ATTR void ledsOff() {
 }
 
 // ************************************************************
-// Perform the shift out to the shift register
-// ************************************************************
-void ICACHE_RAM_ATTR shiftOut(uint8_t _loadPin,
-              uint8_t _dataPin1,
-              uint8_t _clockPin,
-              uint8_t _val1) {
-  uint8_t i;
-
-  digitalWrite(_loadPin, LOW);
-  for (i = 0; i < 8; i++) {
-    digitalWrite(_dataPin1, !!(_val1 & (1 << (7 - i))));
-    digitalWrite(_clockPin, HIGH);
-    digitalWrite(_clockPin, LOW);
-  }
-  digitalWrite(_loadPin, HIGH);
-}
-
-// ************************************************************
 // Display preset - apply leading zero blanking
 // ************************************************************
 void applyBlanking() {
@@ -1922,7 +2068,7 @@ void applyBlanking() {
   }
 
   // We only want to blank the hours tens digit
-  if (NumberArray[0] == 0) {
+  if (numberArray[0] == 0) {
     if (displayType[0] != BLANKED) {
       displayType[0] = BLANKED;
     }
@@ -2921,8 +3067,6 @@ void rootPageHandler() {
   }
 
   response_message += getTableRow2Col("Digit brightness %", String(digitBrightness, 2));
-  response_message += getTableRow2Col("On Count", String(onCount[0]) + "," + String(onCount[1]) + "," + String(onCount[2]) + "," + String(onCount[3]));
-  response_message += getTableRow2Col("Off Count", String(offCount[0]) + "," + String(offCount[1]) + "," + String(offCount[2]) + "," + String(offCount[3]));
   response_message += getTableRow2Col("Motion Sensor", motionSensorState);
   response_message += getTableRow2Col("Time Source", timeSource);
   response_message += getTableRow2Col("Display Time", currentTime);

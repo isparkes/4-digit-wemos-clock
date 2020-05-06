@@ -118,8 +118,8 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
  * -ve scroll left
  */
 int Transition::scroll(int8_t count) {
-  byte copy[DIGIT_COUNT] = {0, 0, 0, 0};
-  memcpy(copy, NumberArray, sizeof(copy));
+  volatile byte copy[DIGIT_COUNT] = {0, 0, 0, 0};
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) copy[i] = numberArray[i];
   int8_t offset = 0;
   int8_t slope = 1;
   if (count < 0) {
@@ -132,7 +132,7 @@ int Transition::scroll(int8_t count) {
       displayType[offset + i * slope] = BLANKED;
     }
     if (i >= count) {
-      NumberArray[offset + i * slope] = copy[offset + (i-count) * slope];
+      numberArray[offset + i * slope] = copy[offset + (i-count) * slope];
     }
   }
 
@@ -151,26 +151,26 @@ unsigned long Transition::hash(unsigned long x) {
 // indices, hence +i. Plus it needs to be 'random', hence hash function
 int Transition::scramble(int msCount, byte start, byte end) {
   for (int i=start; i < end; i++) {
-    NumberArray[i] = hash(msCount / 20 + i) % 10;
+    numberArray[i] = hash(msCount / 20 + i) % 10;
   }
 
   return start;
 }
 
 void Transition::setRegularValues() {
-  memcpy(_regularDisplay, NumberArray, sizeof(_regularDisplay));
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) _regularDisplay[i] = numberArray[i];
 }
 
 void Transition::setAlternateValues() {
-  memcpy(_alternateDisplay, NumberArray, sizeof(_alternateDisplay));
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) _alternateDisplay[i] = numberArray[i];
 }
 
 void Transition::loadRegularValues() {
-  memcpy(NumberArray, _regularDisplay, sizeof(_regularDisplay));
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) numberArray[i] = _regularDisplay[i];
 }
 
 void Transition::loadAlternateValues() {
-  memcpy(NumberArray, _alternateDisplay, sizeof(_alternateDisplay));
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) numberArray[i] = _alternateDisplay[i];
 }
 
 void Transition::saveCurrentDisplayType() {

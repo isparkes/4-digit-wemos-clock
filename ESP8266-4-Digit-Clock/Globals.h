@@ -23,12 +23,9 @@ ClockButton button1(inputPin1, true);   // Clock button debounce and handling
 
 #define ISR_STEPS   20
 
-byte NumberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
+byte numberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte currNumberArray[DIGIT_COUNT]      = {0, 0, 0, 0};
 byte displayType[DIGIT_COUNT]          = {FADE, FADE, FADE, FADE};
-byte onCount[DIGIT_COUNT]              = {1, 1, 1, 1};
-byte offCount[DIGIT_COUNT]             = {ISR_STEPS, ISR_STEPS, ISR_STEPS, ISR_STEPS};
-byte switchCount[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte fadeState[DIGIT_COUNT]            = {0, 0, 0, 0};
 byte valueDisplayTime                  = 0;
 int valueToShow                        = 0;

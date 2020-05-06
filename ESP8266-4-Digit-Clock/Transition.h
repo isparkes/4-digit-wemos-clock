@@ -4,7 +4,7 @@
 #include "Arduino.h"
 #include "DisplayDefs.h"
 
-extern byte NumberArray[];
+extern byte numberArray[];
 extern byte displayType[];
 extern boolean scrollback;
 
@@ -29,8 +29,8 @@ class Transition
     int _holdDuration;
     unsigned long _started;
     unsigned long _end;
-    byte _regularDisplay[DIGIT_COUNT] = {0, 0, 0, 0};
-    byte _alternateDisplay[DIGIT_COUNT] = {0, 0, 0, 0};
+    volatile byte _regularDisplay[DIGIT_COUNT] = {0, 0, 0, 0};
+    volatile byte _alternateDisplay[DIGIT_COUNT] = {0, 0, 0, 0};
     boolean _savedScrollback;
     byte _savedDisplayType[DIGIT_COUNT] = {FADE, FADE, FADE, FADE};
   
