@@ -19,7 +19,6 @@ void Transition::start(unsigned long now) {
   if (_end < now) {
     _started = now;
     _end = getEnd();
-    saveCurrentDisplayType(); 
   }
   // else we are already running!
 }
@@ -94,7 +93,6 @@ boolean Transition::scrollInScrambleOut(unsigned long now)
       loadRegularValues();
       scroll(-(msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration - 1);
     } else if (msCount < _effectInDuration * 2) {
-      restoreCurrentDisplayType();
       loadAlternateValues();
       scroll((DIGIT_COUNT-1) - (msCount % _effectInDuration) * DIGIT_COUNT / _effectInDuration);
     } else if (msCount < _effectInDuration * 2 + _holdDuration) {
@@ -171,20 +169,6 @@ void Transition::loadRegularValues() {
 
 void Transition::loadAlternateValues() {
   for (int i = 0 ; i < DIGIT_COUNT ; i++) numberArray[i] = _alternateDisplay[i];
-}
-
-void Transition::saveCurrentDisplayType() {
-  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-    _savedDisplayType[i] = displayType[i];
-    displayType[i] = NORMAL;
-  }
-  _savedScrollback = scrollback;
-  scrollback = false;
-}
-
-void Transition::restoreCurrentDisplayType() {
-  for (int i = 0 ; i < DIGIT_COUNT ; i++) displayType[i] = _savedDisplayType[i];
-  scrollback = _savedScrollback;
 }
 
 unsigned long Transition::getEnd() {

@@ -1911,7 +1911,7 @@ void outputDisplay() {
     tmpDispType = displayType[i]; 
     if (blankTubes) {
       tmpDispType = BLANKED;
-    } else if (numberArray[i] != currNumberArray[i]) {
+    } else if ((numberArray[i] != currNumberArray[i]) && !transition.isMessageOnDisplay(nowMillis)) {
       if ((numberArray[i] == 0) && scrollback) {
         tmpDispType = SCROLL;
       } else if (fade) {
