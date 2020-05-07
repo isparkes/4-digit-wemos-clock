@@ -49,7 +49,7 @@
 #include "NtpAsync.h"
 #include "HtmlServer.h"
 
-#define DEBUG
+#define DEBUG_OFF
 
 NtpAsync ntpAsync;
 
@@ -58,6 +58,7 @@ NtpAsync ntpAsync;
 //**********************************************************************************
 #define INT_MUX_COUNTS         800
 #define COUNTS_PER_DIGIT       20
+#define COUNTS_PER_DIGIT_DIM   8
 
 #define NEXT_DIGIT    B00000000
 #define SWCH_DIGIT    B01000000
@@ -71,6 +72,10 @@ volatile byte phaseStep = 0;
 byte phaseTime[][4] = {{ 0, 0, 0, 0},
                        { 0, 0, 0, 0},
                        { 0, 0, 0, 0}};
+
+// display arrays
+byte valueBufferCurr[4] = { 0, 0, 0, 0};
+byte valueBufferPrev[4] = { 0, 0, 0, 0};
 
 // Cached values for this digit: updated only between digits
 byte ptCache[] = {20 | NEXT_DIGIT, 0, 0};
@@ -134,17 +139,14 @@ ICACHE_RAM_ATTR void displayUpdate() {
 
   switch (phaseStep) {
     case 0: {
-      // digitOn(digitStep, NumberArray[digitStep]);
       digitOn(digitStep, na);
       break;
     }
     case 1: {
-      // digitOn(digitStep, currNumberArray[digitStep]);
       digitOn(digitStep, cna);
       break;
     }
     case 2: {
-      // digitOff(digitStep, NumberArray[digitStep]);
       digitOff(digitStep, na);
       break;
     }
@@ -161,22 +163,27 @@ ICACHE_RAM_ATTR void displayUpdate() {
     ptCache[0] = phaseTime[0][digitStep];
     ptCache[1] = phaseTime[1][digitStep];
     ptCache[2] = phaseTime[2][digitStep];
-    na = numberArray[digitStep];
-    cna = currNumberArray[digitStep];
+    na = valueBufferCurr[digitStep];
+    cna = valueBufferPrev[digitStep];
   }
 
   timer1_write(nextIntTime * INT_MUX_COUNTS);
 }
 
 // ************************************************************
-// Set the schedule for a single digit
-// dimValue:   1..COUNTS_PER_DIGIT : COUNTS_PER_DIGIT = not dimmed
+// Set the schedule and display values for a single digit, used in
+// display preparation, not needed during at interrupt time
+//
+// digit: The digit to set 0..(DIGIT_COUNT-1)
+// value: The value to show
+// currValue: the value we are fading from
+// dimFactor:   1..COUNTS_PER_DIGIT : COUNTS_PER_DIGIT = not dimmed
 // switchTime: 0..COUNTS_PER_DIGIT-1 : 0 = no switch (undimmed)
 // switchTime: 0..dimValue-1 : 0 = no switch (dimmed)
 // ************************************************************
 void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switchTime, bool blanked) {
-  numberArray[digit] = decodeDigit[value%10];
-  currNumberArray[digit] = decodeDigit[currValue%10];
+  valueBufferCurr[digit] = decodeDigit[value%10];
+  valueBufferPrev[digit] = decodeDigit[currValue%10];
 
   if (dimFactor < 1) {
     dimFactor = 1; 
@@ -261,22 +268,13 @@ void setup()
   ntpAsync.setDebugOutput(true);
 #endif
 
-  loadNumberArrayPOSTMessage(postStep++);
-
   // Set up the LED output
   leds.Begin();
 
-  loadNumberArrayPOSTMessage(postStep++);
+  // Set up the display for the diags - this sets up the interrupt routine
+  allBright();
+  outputDisplay();
 
-  // Start I2C now so that the update from NTP can be sent to the RTC immediately
-  Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
-  debugMsg("I2C master started");
-  
-  loadNumberArrayPOSTMessage(postStep++);
-
-  setPinModes();
-
-  loadNumberArrayPOSTMessage(postStep++);
   debugMsg("Starting display interrupt handler");
   
   timer1_attachInterrupt(displayUpdate); // Add ISR Function
@@ -290,10 +288,19 @@ void setup()
     TIM_LOOP  1 //on interrupt the counter will start with the same value again
   */
   
-  loadNumberArrayPOSTMessage(postStep++);
   timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
+  
   loadNumberArrayPOSTMessage(postStep++);
 
+  // Start I2C now so that the update from NTP can be sent to the RTC immediately
+  Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
+  debugMsg("I2C master started");
+  
+  loadNumberArrayPOSTMessage(postStep++);
+
+  setPinModes();
+
+  loadNumberArrayPOSTMessage(postStep++);
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
@@ -565,7 +572,7 @@ void loop()
     saveConfigToSpiffs();
 
     // Preset the display
-    allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+    allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
 
     nextMode = currentMode;
   } else if (button1.isButtonPressedReleased1S()) {
@@ -578,7 +585,7 @@ void loop()
       saveConfigToSpiffs();
 
       // Preset the display
-      allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+      allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
     }
 
     nextMode = currentMode;
@@ -602,7 +609,7 @@ void loop()
     pirConsecutiveCounts++;
   }
 
-  delay(100);
+  delay(10);
   
   outputDisplay();
 }
@@ -946,7 +953,7 @@ void setNextMode(int displayMode) {
   switch (displayMode) {
     case MODE_TIME: {
         loadNumberArrayTime();
-        allFadeOrNormal(APPLY_LEAD_0_BLANK);
+        allNormal(APPLY_LEAD_0_BLANK);
         break;
       }
     case MODE_HOURS_SET: {
@@ -1239,7 +1246,7 @@ void processCurrentMode(int displayMode) {
             loadNumberArrayConfIntWide(lastImpressionsPerSec);
           }
 
-          allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+          allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
 
         } else {
           if (slotsMode > SLOTS_MODE_MIN) {
@@ -1250,7 +1257,7 @@ void processCurrentMode(int displayMode) {
               transition.setAlternateValues();
               loadNumberArrayTime();
               transition.setRegularValues();
-              allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+              allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
 
               transition.start(nowMillis);
             }
@@ -1274,7 +1281,7 @@ void processCurrentMode(int displayMode) {
               } else {
                 // normal time
                 loadNumberArrayTime();
-                allFadeOrNormal(APPLY_LEAD_0_BLANK);
+                allNormal(APPLY_LEAD_0_BLANK);
               }
             }
           } else {
@@ -1285,7 +1292,7 @@ void processCurrentMode(int displayMode) {
             } else {
               // normal time
               loadNumberArrayTime();
-              allFadeOrNormal(APPLY_LEAD_0_BLANK);
+              allNormal(APPLY_LEAD_0_BLANK);
             }
           }
         }
@@ -1728,59 +1735,38 @@ void cycleColours3(int colors[3]) {
 // Break the time into displayable digits
 // ************************************************************
 void loadNumberArrayTime() {
-  byte d0 = disp_hour / 10;
-  byte d1 = disp_hour % 10;
-  byte d2 = disp_min / 10;
-  byte d3 = disp_min % 10;
-  
-  setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
-  setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
-  setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
-  setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
+  numberArray[3] = disp_min % 10;
+  numberArray[2] = disp_min / 10;
+  numberArray[1] = disp_hour % 10;
+  numberArray[0] = disp_hour / 10;
 }
 
 // ************************************************************
 // Break the minutes and seconds into displayable digits
 // ************************************************************
 void loadNumberArrayMinsSecs() {
-  byte d0 = disp_min / 10;
-  byte d1 = disp_min % 10;
-  byte d2 = disp_sec / 10;
-  byte d3 = disp_sec % 10;
-  
-  setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
-  setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
-  setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
-  setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
+  numberArray[3] = disp_sec % 10;
+  numberArray[2] = disp_sec / 10;
+  numberArray[1] = disp_min % 10;
+  numberArray[0] = disp_min / 10;
 }
 
 // ************************************************************
 // Break the date into displayable digits, respecting date format
 // ************************************************************
 void loadNumberArrayDayMonth() {
-  byte d0, d1, d2, d3;
   switch (dateFormat) {
     case DATE_FORMAT_MMDD:
-      d0 = disp_month / 10;
-      d1 = disp_month % 10;
-      d2 = disp_day / 10;
-      d3 = disp_day % 10;
-      
-      setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
-      setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
-      setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
-      setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
+      numberArray[3] = disp_day % 10;
+      numberArray[2] = disp_day / 10;
+      numberArray[1] = disp_month % 10;
+      numberArray[0] = disp_month / 10;
       break;
     case DATE_FORMAT_DDMM:
-      d0 = disp_day / 10;
-      d1 = disp_day % 10;
-      d2 = disp_month / 10;
-      d3 = disp_month % 10;
-      
-      setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
-      setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
-      setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
-      setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
+      numberArray[3] = disp_month % 10;
+      numberArray[2] = disp_month / 10;
+      numberArray[1] = disp_day % 10;
+      numberArray[0] = disp_day / 10;
       break;
   }
 }
@@ -1829,14 +1815,10 @@ void loadNumberArrayConfInt(int confValue, byte mode) {
 // Show an integer configuration value, use all 4 digits
 // ************************************************************
 void loadNumberArrayConfIntWide(int confValue) {
-  byte d0 = (confValue / 1000) % 10;
-  byte d1 = (confValue / 100) % 10;
-  byte d2 = (confValue / 10) % 10;
-  byte d3 = (confValue / 1) % 10;
-  setDigit(0, d0, d0, COUNTS_PER_DIGIT, 0, false);
-  setDigit(1, d1, d1, COUNTS_PER_DIGIT, 0, false);
-  setDigit(2, d2, d2, COUNTS_PER_DIGIT, 0, false);
-  setDigit(3, d3, d3, COUNTS_PER_DIGIT, 0, false);
+  numberArray[3] = (confValue / 1) % 10;
+  numberArray[2] = (confValue / 10) % 10;
+  numberArray[1] = (confValue / 100) % 10;
+  numberArray[0] = (confValue / 1000) % 10;
 }
 
 // ************************************************************
@@ -1900,6 +1882,9 @@ void loadDisplaySetValueType() {
 // ************************************************************
 void loadNumberArrayPOSTMessage(int postValue) {
   loadNumberArrayConfIntWide(postValue);
+
+  // needed to transfer the values to the interrupt handler
+  outputDisplay();
 }
 
 // ************************************************************
@@ -1917,56 +1902,14 @@ void outputDisplay() {
   for ( int i = 0 ; i < DIGIT_COUNT ; i ++ ) {
     if (blankTubes) {
       tmpDispType = BLANKED;
-    } else {
-      tmpDispType = displayType[i];
-    }
-
-    switch (tmpDispType) {
-      case BLANKED:
-        {
-          // Setting off = on means we never turn on
-//          onCount[i] = 0;
-//          offCount[i] = 1;
-          break;
-        }
-      case DIMMED:
-        {
-//          onCount[i] = 1;
-//          offCount[i] = 8;
-          break;
-        }
-      case BRIGHT:
-        {
-//          onCount[i] = 1;
-//          offCount[i] = ISR_STEPS;
-          break;
-        }
-      case FADE:
-      case NORMAL:
-      case SCROLL:
-        {
-//          onCount[i] = 1;
-//          offCount[i] = digitOffCount;
-          break;
-        }
-      case BLINK:
-        {
-          if (blinkState) {
-//            onCount[i] = 1;
-//            offCount[i] = digitOffCount;
-          } else {
-//            onCount[i] = 0;
-//            offCount[i] = 0;
-          }
-          break;
-        }
-    }
-
-    // Do scrollback when we are going to 0
-    if (numberArray[i] != currNumberArray[i]) {
+    } else if (numberArray[i] != currNumberArray[i]) {
       if ((numberArray[i] == 0) && scrollback) {
         tmpDispType = SCROLL;
+      } else if (fade) {
+        tmpDispType = FADE;
       }
+    } else {
+      tmpDispType = displayType[i]; 
     }
 
     // --------------------- Scroll ---------------------
@@ -1976,55 +1919,87 @@ void outputDisplay() {
     if (tmpDispType == SCROLL) {
       if (numberArray[i] != currNumberArray[i]) {
         if (fadeState[i] == 0) {
-          // Start the fade
+          // Start the scroll step
           fadeState[i] = scrollSteps;
         }
 
         if (fadeState[i] == 1) {
-          // finish the fade
+          // finish the scroll step
           fadeState[i] = 0;
           currNumberArray[i] = currNumberArray[i] - 1;
         } else if (fadeState[i] > 1) {
           // Continue the scroll countdown
           fadeState[i] = fadeState[i] - 1;
         }
-        // Ensure we show the current number, not the target number
-//        switchCount[i] = 1;
       }
-    } else
+    }
 
-      // --------------------- Fade ---------------------
+    // --------------------- Fade ---------------------
 
-      // manage fading, each impression we show 1 fade step less of the old
-      // digit and 1 fade step more of the new
-      if (tmpDispType == FADE) {
-        if (numberArray[i] != currNumberArray[i]) {
-          // Start the fade
-          if (fadeState[i] == 0) {
-            fadeState[i] = fadeSteps;
-            debugMsg("StartFade");
-//            switchCount[i] = getSwitchTime(offCount[i], fadeState[i], fadeSteps);
-          } else if (fadeState[i] == 1) {
-            // finish the fade
-            fadeState[i] = 0;
-            currNumberArray[i] = numberArray[i];
-//            switchCount[i] = 0;
-            debugMsg("End Fade");
-          } else if (fadeState[i] > 1) {
-            // Continue the fade
-            debugMsg("Cont: N: " + String(numberArray[i]) + " C: " + String(currNumberArray[i]) );
-            fadeState[i] = fadeState[i] - 1;
-//            switchCount[i] = getSwitchTime(offCount[i], fadeState[i], fadeSteps);
-          }
+    // manage fading, each step we show 1 fade step less of the old
+    // digit and 1 fade step more of the new
+    if (tmpDispType == FADE) {
+      if (numberArray[i] != currNumberArray[i]) {
+        // Start the fade
+        if (fadeState[i] == 0) {
+          fadeState[i] = fadeSteps;
+          // debugMsg("Start Fade");
         }
-      } else
-
-        // --------------------- Normal ---------------------
-
-      {
-        // don't do switching or scrolling
-//        switchCount[i] = 0;
       }
+
+      if (fadeState[i] == 1) {
+        // finish the fade
+        fadeState[i] = 0;
+        currNumberArray[i] = numberArray[i];
+      } else if (fadeState[i] > 1) {
+        // Continue the fade
+        fadeState[i] = fadeState[i] - 1;
+      }
+    }
+
+    switch (tmpDispType) {
+      case BLANKED:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, true);
+          break;
+        }
+      case DIMMED:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT_DIM, 0, false);
+          break;
+        }
+      case BRIGHT:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, false);
+          break;
+        }
+      case NORMAL:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, 0, false);
+          break;
+        }
+      case FADE:
+        {
+          byte switchTime = getSwitchTime(digitOffCount, fadeState[i], fadeSteps);
+          setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, switchTime, false);
+          break;
+        }
+      case SCROLL:
+        {
+          // Set the Switch state to 1 to show the previous digit
+          setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, 1, false);
+          break;
+        }
+      case BLINK:
+        {
+          if (blinkState) {
+            setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, 0, false);
+          } else {
+            setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, true);
+          }
+          break;
+        }
+    }
 
     // LEDs off will usually come before the digits off, or be the same 
     ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
@@ -2032,13 +2007,21 @@ void outputDisplay() {
   }
 }
 
+
+// ************************************************************
+// Calculate the off time for this digit
+// fadeSteps: The number of iterations we should fade over
+// fadeState: the current step from 0 to fadeState-1
+// result: 1..offCount
+// ************************************************************
 byte getSwitchTime(byte offCount, byte fadeState, byte fadeSteps) {
   float digitSwitchTimeFloat;
-  digitSwitchTimeFloat = (float) offCount * (float) (offCount - fadeState) / (float) fadeSteps;
+  digitSwitchTimeFloat = (float) offCount * (float) (fadeSteps - fadeState) / (float) fadeSteps;
   byte result = (byte) digitSwitchTimeFloat;
 
-  debugMsg("result: " + String(result));
-  
+  // can't give back 0, because that means ("show new")
+  if (result == 0) result = 1;
+  // debugMsg("fadeState: " + String(fadeState) + ", result: " + result);
   return result;
 }
 
@@ -2078,12 +2061,8 @@ void applyBlanking() {
 // ************************************************************
 // Display preset
 // ************************************************************
-void allFadeOrNormal(boolean blanking) {
-  if (fade) {
-    allFade();
-  } else {
-    allNormal();
-  }
+void allNormal(boolean blanking) {
+  allNormal();
 
   if (blanking) {
     applyBlanking();
@@ -2093,21 +2072,11 @@ void allFadeOrNormal(boolean blanking) {
 // ************************************************************
 // Display preset
 // ************************************************************
-void allFade() {
-  if (displayType[0] != FADE) displayType[0] = FADE;
-  if (displayType[1] != FADE) displayType[1] = FADE;
-  if (displayType[2] != FADE) displayType[2] = FADE;
-  if (displayType[3] != FADE) displayType[3] = FADE;
-}
-
-// ************************************************************
-// Display preset
-// ************************************************************
 void allBright() {
-  if (displayType[0] != BRIGHT) displayType[0] = BRIGHT;
-  if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
-  if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
-  if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
+  displayType[0] = BRIGHT;
+  displayType[1] = BRIGHT;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
@@ -2142,90 +2111,90 @@ void highlightDaysDateFormat() {
 // Display preset, highlight digits 0 and 1
 // ************************************************************
 void highlight0and1() {
-  if (displayType[0] != BRIGHT) displayType[0] = BRIGHT;
-  if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
-  if (displayType[2] != DIMMED) displayType[2] = DIMMED;
-  if (displayType[3] != DIMMED) displayType[3] = DIMMED;
+  displayType[0] = BRIGHT;
+  displayType[1] = BRIGHT;
+  displayType[2] = DIMMED;
+  displayType[3] = DIMMED;
 }
 
 // ************************************************************
 // Display preset, highlight digits 2 and 3
 // ************************************************************
 void highlight2and3() {
-  if (displayType[0] != DIMMED) displayType[0] = DIMMED;
-  if (displayType[1] != DIMMED) displayType[1] = DIMMED;
-  if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
-  if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
+  displayType[0] = DIMMED;
+  displayType[1] = DIMMED;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void allNormal() {
-  if (displayType[0] != NORMAL) displayType[0] = NORMAL;
-  if (displayType[1] != NORMAL) displayType[1] = NORMAL;
-  if (displayType[2] != NORMAL) displayType[2] = NORMAL;
-  if (displayType[3] != NORMAL) displayType[3] = NORMAL;
+  displayType[0] = NORMAL;
+  displayType[1] = NORMAL;
+  displayType[2] = NORMAL;
+  displayType[3] = NORMAL;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void displayConfig() {
-  if (displayType[0] != BLINK)  displayType[0] = BLINK;
-  if (displayType[1] != BLINK)  displayType[1] = BLINK;
-  if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
-  if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
+  displayType[0] = BLINK;
+  displayType[1] = BLINK;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void displayConfig3() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != NORMAL) displayType[1] = BRIGHT;
-  if (displayType[2] != NORMAL) displayType[2] = BRIGHT;
-  if (displayType[3] != NORMAL) displayType[3] = BRIGHT;
+  displayType[0] = BLANKED;
+  displayType[1] = BRIGHT;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void displayConfig2() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != BLANKED) displayType[1] = BLANKED;
-  if (displayType[2] != NORMAL) displayType[2] = BRIGHT;
-  if (displayType[3] != NORMAL) displayType[3] = BRIGHT;
+  displayType[0] = BLANKED;
+  displayType[1] = BLANKED;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void allBlanked() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != BLANKED) displayType[1] = BLANKED;
-  if (displayType[2] != BLANKED) displayType[2] = BLANKED;
-  if (displayType[3] != BLANKED) displayType[3] = BLANKED;
+  displayType[0] = BLANKED;
+  displayType[1] = BLANKED;
+  displayType[2] = BLANKED;
+  displayType[3] = BLANKED;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void confBlink() {
-  if (displayType[0] != BLINK) displayType[0] = BLINK;
-  if (displayType[1] != BLINK) displayType[1] = BLINK;
-  if (displayType[2] != BLINK) displayType[2] = BLINK;
-  if (displayType[3] != BLINK) displayType[3] = BLINK;
+  displayType[0] = BLINK;
+  displayType[1] = BLINK;
+  displayType[2] = BLINK;
+  displayType[3] = BLINK;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void showDisplayIP() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != FADE) displayType[1] = FADE;
-  if (displayType[2] != FADE) displayType[2] = FADE;
-  if (displayType[3] != FADE) displayType[3] = FADE;
+  displayType[0] = BLANKED;
+  displayType[1] = NORMAL;
+  displayType[2] = NORMAL;
+  displayType[3] = NORMAL;
 }
 
 // ************************************************************

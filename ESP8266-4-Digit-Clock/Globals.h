@@ -25,7 +25,7 @@ ClockButton button1(inputPin1, true);   // Clock button debounce and handling
 
 byte numberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte currNumberArray[DIGIT_COUNT]      = {0, 0, 0, 0};
-byte displayType[DIGIT_COUNT]          = {FADE, FADE, FADE, FADE};
+byte displayType[DIGIT_COUNT]          = {NORMAL, NORMAL, NORMAL, NORMAL};
 byte fadeState[DIGIT_COUNT]            = {0, 0, 0, 0};
 byte valueDisplayTime                  = 0;
 int valueToShow                        = 0;
@@ -39,7 +39,7 @@ int minDim = MIN_DIM_DEFAULT;
 
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
 // 350 is about 1 second
-int fadeSteps = FADE_STEPS_DEFAULT;
+int fadeSteps = ISR_STEPS;
 int digitOffCount = ISR_STEPS;
 int scrollSteps = SCROLL_STEPS_DEFAULT;
 boolean scrollback = true;

@@ -8,10 +8,10 @@
 // Display mode, set per digit
 #define BLANKED  0
 #define DIMMED   1
-#define FADE     2
-#define NORMAL   3
-#define BLINK    4
-#define SCROLL   5
+#define NORMAL   2
+#define FADE     3
+#define SCROLL   4
+#define BLINK    5
 #define BRIGHT   6
 
 #define DIAGS_SPIFFS      0
