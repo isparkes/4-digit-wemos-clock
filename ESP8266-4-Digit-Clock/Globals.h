@@ -64,7 +64,7 @@ int pirTimeout = PIR_TIMEOUT_DEFAULT;
 boolean blankLeading = false;
 byte dateFormat = DATE_FORMAT_DEFAULT;
 byte ledMode = 0;       // Separator LED mode
-byte separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
+byte separatorDimFactor = SEP_DIM_DEFAULT;
 byte backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
 
 // Cache values for display smoothness

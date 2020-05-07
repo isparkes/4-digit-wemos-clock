@@ -154,9 +154,11 @@ ICACHE_RAM_ATTR void displayUpdate() {
 
   phaseStep = nextPhase;
   if (phaseStep == 0) {
+    
     digitStep++;
     if (digitStep > 3) {
       digitStep = 0;
+      ledsOn();
     }
 
     // get the cached values when we change digit
@@ -165,6 +167,10 @@ ICACHE_RAM_ATTR void displayUpdate() {
     ptCache[2] = phaseTime[2][digitStep];
     na = valueBufferCurr[digitStep];
     cna = valueBufferPrev[digitStep];
+  }
+  
+  if (digitStep == separatorDimFactor) {
+    ledsOff();
   }
 
   timer1_write(nextIntTime * INT_MUX_COUNTS);
@@ -291,7 +297,7 @@ void setup()
   timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
   
   loadNumberArrayPOSTMessage(postStep++);
-
+  
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
@@ -1883,8 +1889,10 @@ void loadDisplaySetValueType() {
 void loadNumberArrayPOSTMessage(int postValue) {
   loadNumberArrayConfIntWide(postValue);
 
-  // needed to transfer the values to the interrupt handler
-  outputDisplay();
+  // Load manually into the display buffer - the display loop is not working yet
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
+    setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, false);
+  }
 }
 
 // ************************************************************
@@ -1900,6 +1908,7 @@ void outputDisplay() {
   boolean leadingZeros = true;
 
   for ( int i = 0 ; i < DIGIT_COUNT ; i ++ ) {
+    tmpDispType = displayType[i]; 
     if (blankTubes) {
       tmpDispType = BLANKED;
     } else if (numberArray[i] != currNumberArray[i]) {
@@ -1908,8 +1917,6 @@ void outputDisplay() {
       } else if (fade) {
         tmpDispType = FADE;
       }
-    } else {
-      tmpDispType = displayType[i]; 
     }
 
     // --------------------- Scroll ---------------------
@@ -1932,7 +1939,7 @@ void outputDisplay() {
           fadeState[i] = fadeState[i] - 1;
         }
       }
-    }
+    } else
 
     // --------------------- Fade ---------------------
 
@@ -1955,8 +1962,12 @@ void outputDisplay() {
         // Continue the fade
         fadeState[i] = fadeState[i] - 1;
       }
+    } else
+    
+    {
+      
     }
-
+    
     switch (tmpDispType) {
       case BLANKED:
         {
@@ -2000,10 +2011,6 @@ void outputDisplay() {
           break;
         }
     }
-
-    // LEDs off will usually come before the digits off, or be the same 
-    ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
-    if (ledsOffTime < minDim) ledsOffTime = minDim;
   }
 }
 
@@ -2932,7 +2939,7 @@ void factoryReset() {
   setWebAuthentication(WEB_AUTH_DEFAULT);
   setWebUserName(WEB_USERNAME_DEFAULT);
   setWebPassword(WEB_PASSWORD_DEFAULT);
-  separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
+  separatorDimFactor = SEP_DIM_DEFAULT;
   backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
 
   saveConfigToSpiffs();
@@ -3334,7 +3341,14 @@ void clockConfigPageHandler() {
   response_message += getDropDownFooter();
 
   // Separator dim factor
-  response_message += getNumberInput("Separator Dim:", "separatorDimFactor", SEPARATOR_DIM_FACTOR_MIN, SEPARATOR_DIM_FACTOR_MAX, separatorDimFactor, false);
+  response_message += getDropDownHeader("Separator Dim:", "separatorDimFactor", false);
+  response_message += getDropDownOption("0", "Off", (separatorDimFactor == SEP_OFF));
+  response_message += getDropDownOption("1", "Dim", (separatorDimFactor == SEP_DIM));
+  response_message += getDropDownOption("2", "Medium", (separatorDimFactor == SEP_MED));
+  response_message += getDropDownOption("3", "Bright", (separatorDimFactor == SEP_BRIGHT));
+  response_message += getDropDownOption("4", "Full", (separatorDimFactor == SEP_FULL));
+  response_message += getDropDownFooter();
+
 
   // PIR timeout
   response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);

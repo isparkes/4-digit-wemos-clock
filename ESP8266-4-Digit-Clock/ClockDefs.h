@@ -223,9 +223,12 @@
 #define SLOTS_MODE_DEFAULT              1
 
 // -------------------------------------------------------------------------------
-#define SEPARATOR_DIM_FACTOR_MIN        10
-#define SEPARATOR_DIM_FACTOR_MAX        100
-#define SEPARATOR_DIM_FACTOR_DEFAULT    100
+#define SEP_OFF                         0
+#define SEP_DIM                         1
+#define SEP_MED                         2
+#define SEP_BRIGHT                      3
+#define SEP_FULL                        4
+#define SEP_DIM_DEFAULT                 SEP_FULL
 
 // -------------------------------------------------------------------------------
 #define BACKLIGHT_DIM_FACTOR_MIN        10

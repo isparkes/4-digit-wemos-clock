@@ -174,13 +174,16 @@ void Transition::loadAlternateValues() {
 }
 
 void Transition::saveCurrentDisplayType() {
-  memcpy(_savedDisplayType, displayType, sizeof(_savedDisplayType));
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
+    _savedDisplayType[i] = displayType[i];
+    displayType[i] = NORMAL;
+  }
   _savedScrollback = scrollback;
   scrollback = false;
 }
 
 void Transition::restoreCurrentDisplayType() {
-  memcpy(displayType, _savedDisplayType, sizeof(_savedDisplayType));
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) displayType[i] = _savedDisplayType[i];
   scrollback = _savedScrollback;
 }
 
