@@ -2945,12 +2945,6 @@ void factoryReset() {
   saveConfigToSpiffs();
 }
 
-//**********************************************************************************
-//**********************************************************************************
-//*                                Page Handlers                                   *
-//**********************************************************************************
-//**********************************************************************************
-
 void saveToSpiffsIfChanged(boolean changed) {
   if (changed) {
     debugMsg("Config options changed, saving them");
@@ -2960,6 +2954,12 @@ void saveToSpiffsIfChanged(boolean changed) {
     saveStatsToSpiffs();
   }
 }
+
+//**********************************************************************************
+//**********************************************************************************
+//*                                Page Handlers                                   *
+//**********************************************************************************
+//**********************************************************************************
 
 // ************************************************************
 // Summary page
@@ -3198,8 +3198,8 @@ void clockConfigPageHandler() {
   String response_message = getHTMLHead(getIsConnected());
   response_message += getNavBar();
 
-  // form header
-  response_message += getFormHead("Set Configuration");
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("General options");
 
   // 12/24 mode
   response_message += getRadioGroupHeader("12H/24H mode:");
@@ -3222,6 +3222,18 @@ void clockConfigPageHandler() {
     response_message += getRadioButton("blankLeading", "Show", "show", true);
   }
   response_message += getRadioGroupFooter();
+
+  // Date format
+  response_message += getDropDownHeader("Date format:", "dateFormat", false, false);
+  response_message += getDropDownOption("0", "MM-DD", (dateFormat == 0));
+  response_message += getDropDownOption("1", "DD-MM", (dateFormat == 1));
+  response_message += getDropDownFooter();
+
+  // Slots Mode
+  response_message += getDropDownHeader("Date Slots:", "slotsMode", true, false);
+  response_message += getDropDownOption("0", "Don't use slots mode", (slotsMode == 0));
+  response_message += getDropDownOption("1", "Scroll In, Scramble Out", (slotsMode == 1));
+  response_message += getDropDownFooter();
 
   // Scrollback
   response_message += getRadioGroupHeader("Scrollback effect:");
@@ -3251,6 +3263,13 @@ void clockConfigPageHandler() {
   // Fade steps
   response_message += getNumberInput("Fade steps:", "fadeSteps", FADE_STEPS_MIN, FADE_STEPS_MAX, fadeSteps, !fade);
 
+  response_message += getSubmitButton("Set");
+
+  response_message += getFormFoot();
+
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Light Dependent Resistor");
+
   // LDR
   response_message += getRadioGroupHeader("Use LDR:");
   if (useLDR) {
@@ -3262,14 +3281,38 @@ void clockConfigPageHandler() {
   }
   response_message += getRadioGroupFooter();
 
-  // Date format
-  response_message += getDropDownHeader("Date format:", "dateFormat", false);
-  response_message += getDropDownOption("0", "MM-DD", (dateFormat == 0));
-  response_message += getDropDownOption("1", "DD-MM", (dateFormat == 1));
-  response_message += getDropDownFooter();
+  // Min dim
+  response_message += getNumberInput("Min Dim:", "minDim", MIN_DIM_MIN, MIN_DIM_MAX, minDim, false);
+
+  response_message += getSubmitButton("Set");
+
+  response_message += getFormFoot();
+
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Digit blanking");
+  
+  if (pirInstalled) {
+    response_message += getExplanationText("Motion detector installed - time based blanking is disabled");
+  } else {
+    response_message += getExplanationText("Motion detector not installed - motion detector blanking is inactive");
+  }
+  
+  // PIR timeout
+  response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);
+
+  // PIR pullup
+  response_message += getRadioGroupHeader("Use PIR pullup:");
+  if (usePIRPullup) {
+    response_message += getRadioButton("usePIRPullup", "On", "on", true);
+    response_message += getRadioButton("usePIRPullup", "Off", "off", false);
+  } else {
+    response_message += getRadioButton("usePIRPullup", "On", "on", false);
+    response_message += getRadioButton("usePIRPullup", "Off", "off", true);
+  }
+  response_message += getRadioGroupFooter();
 
   // Day blanking
-  response_message += getDropDownHeader("Day blanking:", "dayBlanking", true);
+  response_message += getDropDownHeader("Day blanking:", "dayBlanking", true, false);
   response_message += getDropDownOption("0", "Never blank", (dayBlanking == 0));
   response_message += getDropDownOption("1", "Blank all day on weekends", (dayBlanking == 1));
   response_message += getDropDownOption("2", "Blank all day on week days", (dayBlanking == 2));
@@ -3282,7 +3325,7 @@ void clockConfigPageHandler() {
   response_message += getDropDownFooter();
 
   // Blank Mode
-  response_message += getDropDownHeader("Blank Mode:", "blankMode", true);
+  response_message += getDropDownHeader("Blank Mode:", "blankMode", true, false);
   response_message += getDropDownOption("0", "Blank tubes only", (blankMode == 0));
   response_message += getDropDownOption("1", "Blank LEDs only", (blankMode == 1));
   response_message += getDropDownOption("2", "Blank tubes and LEDs", (blankMode == 2));
@@ -3296,8 +3339,15 @@ void clockConfigPageHandler() {
   // Blank hours to
   response_message += getNumberInput("Blank to:", "blankHourEnd", 0, 23, blankHourEnd, hoursDisabled);
 
+  response_message += getSubmitButton("Set");
+
+  response_message += getFormFoot();
+
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Back/Underlights");
+
   // Back light
-  response_message += getDropDownHeader("Back light:", "backlightMode", true);
+  response_message += getDropDownHeader("Back light:", "backlightMode", true, false);
   response_message += getDropDownOption("0", "Fixed RGB backlight, no dimming", (backlightMode == 0));
   response_message += getDropDownOption("1", "Pulsing RGB backlight, no dimming", (backlightMode == 1));
   response_message += getDropDownOption("2", "Cycling RGB backlight, no dimming", (backlightMode == 2));
@@ -3323,14 +3373,8 @@ void clockConfigPageHandler() {
   // Cycle speed
   response_message += getNumberInput("Backlight Cycle Speed:", "cycleSpeed", CYCLE_SPEED_MIN, CYCLE_SPEED_MAX, cycleSpeed, !activeCycle);
 
-  // Slots Mode
-  response_message += getDropDownHeader("Date Slots:", "slotsMode", true);
-  response_message += getDropDownOption("0", "Don't use slots mode", (slotsMode == 0));
-  response_message += getDropDownOption("1", "Scroll In, Scramble Out", (slotsMode == 1));
-  response_message += getDropDownFooter();
-
   // LED mode
-  response_message += getDropDownHeader("LED Mode:", "ledMode", true);
+  response_message += getDropDownHeader("LED Mode:", "ledMode", true, false);
   response_message += getDropDownOption("0", "RailRoad", (ledMode == LED_RAILROAD));
   response_message += getDropDownOption("1", "Slow flash", (ledMode == LED_BLINK_SLOW));
   response_message += getDropDownOption("2", "Fast flash", (ledMode == LED_BLINK_FAST));
@@ -3341,7 +3385,7 @@ void clockConfigPageHandler() {
   response_message += getDropDownFooter();
 
   // Separator dim factor
-  response_message += getDropDownHeader("Separator Dim:", "separatorDimFactor", false);
+  response_message += getDropDownHeader("Separator Dim:", "separatorDimFactor", false, false);
   response_message += getDropDownOption("0", "Off", (separatorDimFactor == SEP_OFF));
   response_message += getDropDownOption("1", "Dim", (separatorDimFactor == SEP_DIM));
   response_message += getDropDownOption("2", "Medium", (separatorDimFactor == SEP_MED));
@@ -3349,23 +3393,12 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("4", "Full", (separatorDimFactor == SEP_FULL));
   response_message += getDropDownFooter();
 
+  response_message += getSubmitButton("Set");
 
-  // PIR timeout
-  response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);
+  response_message += getFormFoot();
 
-  // PIR pullup
-  response_message += getRadioGroupHeader("Use PIR pullup:");
-  if (usePIRPullup) {
-    response_message += getRadioButton("usePIRPullup", "On", "on", true);
-    response_message += getRadioButton("usePIRPullup", "Off", "off", false);
-  } else {
-    response_message += getRadioButton("usePIRPullup", "On", "on", false);
-    response_message += getRadioButton("usePIRPullup", "Off", "off", true);
-  }
-  response_message += getRadioGroupFooter();
-
-  // Min dim
-  response_message += getNumberInput("Min Dim:", "minDim", MIN_DIM_MIN, MIN_DIM_MAX, minDim, false);
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Security");
 
   // web auth mode
   response_message += getRadioGroupHeader("Web Authentication:");
