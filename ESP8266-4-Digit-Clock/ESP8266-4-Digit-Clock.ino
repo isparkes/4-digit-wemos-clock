@@ -311,7 +311,7 @@ void setup()
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
   loadNumberArrayPOSTMessage(postStep++);
-  // delay(1000);
+  delay(1000);
 
   loadNumberArrayPOSTMessage(postStep++);
   for (int i = 0 ; i < 25 ; i++) {
