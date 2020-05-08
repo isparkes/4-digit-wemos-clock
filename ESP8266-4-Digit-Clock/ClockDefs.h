@@ -181,7 +181,8 @@
 #define BLANK_MODE_TUBES                0  // Use blanking for tubes only 
 #define BLANK_MODE_LEDS                 1  // Use blanking for LEDs only
 #define BLANK_MODE_BOTH                 2  // Use blanking for tubes and LEDs
-#define BLANK_MODE_MAX                  2
+#define BLANK_MODE_ALL                  3  // Use blanking for tubes, LEDs and separators
+#define BLANK_MODE_MAX                  3
 #define BLANK_MODE_DEFAULT              2
 
 // -------------------------------------------------------------------------------

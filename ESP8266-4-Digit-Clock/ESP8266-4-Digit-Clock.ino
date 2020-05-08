@@ -158,7 +158,7 @@ ICACHE_RAM_ATTR void displayUpdate() {
     digitStep++;
     if (digitStep > 3) {
       digitStep = 0;
-      ledsOn();
+      if (separatorDimFactor > 0) ledsOn();
     }
 
     // get the cached values when we change digit
@@ -764,69 +764,74 @@ void setLeds()
   // Calculate the brightness factor based on the "pulse"
   float pwmFactor = (float) secsDelta / (float) 1000.0;
 
-  switch (ledMode) {
-    case LED_RAILROAD:
-      {
-        if (upOrDown) {
-          led1State = true;
-          led2State = false;
-        } else {
-          led1State = false;
-          led2State = true;
+  if (blankSeparators) {
+    led1State = false;
+    led2State = false;
+  } else {
+    switch (ledMode) {
+      case LED_RAILROAD:
+        {
+          if (upOrDown) {
+            led1State = true;
+            led2State = false;
+          } else {
+            led1State = false;
+            led2State = true;
+          }
+          break;
         }
-        break;
-      }
-    case LED_BLINK_SLOW:
-      {
-        if (upOrDown) {
+      case LED_BLINK_SLOW:
+        {
+          if (upOrDown) {
+            led1State = true;
+            led2State = true;
+          } else {
+            led1State = false;
+            led2State = false;
+          }
+          break;
+        }
+      case LED_BLINK_FAST:
+        {
+          if (secsDeltaAbs < 500) {
+            led1State = true;
+            led2State = true;
+          } else {
+            led1State = false;
+            led2State = false;
+          }
+          break;
+        }
+      case LED_BLINK_DBL:
+        {
+          if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
+            led1State = true;
+            led2State = true;
+          } else {
+            led1State = false;
+            led2State = false;
+          }
+          break;
+        }
+      case LED_ON:
+        {
           led1State = true;
           led2State = true;
-        } else {
+          break;
+        }
+      case LED_OFF:
+        {
           led1State = false;
           led2State = false;
+          break;
         }
-        break;
-      }
-    case LED_BLINK_FAST:
-      {
-        if (secsDeltaAbs < 500) {
-          led1State = true;
-          led2State = true;
-        } else {
-          led1State = false;
-          led2State = false;
+      case LED_AM_PM:
+        {
+          led1State = !ampm; // bottom LED
+          led2State = ampm; // top LED
+          break;
         }
-        break;
-      }
-    case LED_BLINK_DBL:
-      {
-        if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
-          led1State = true;
-          led2State = true;
-        } else {
-          led1State = false;
-          led2State = false;
-        }
-        break;
-      }
-    case LED_ON:
-      {
-        led1State = true;
-        led2State = true;
-        break;
-      }
-    case LED_OFF:
-      {
-        led1State = false;
-        led2State = false;
-        break;
-      }
-    case LED_AM_PM:
-      {
-        led1State = !ampm; // bottom LED
-        led2State = ampm; // top LED
-        break;
-      }
+    }
   }
 
   if (blankLEDs) {
@@ -2403,24 +2408,35 @@ void setTubesAndLEDSBlankMode() {
         {
           blankTubes = true;
           blankLEDs = false;
+          blankSeparators = false;
           break;
         }
       case BLANK_MODE_LEDS:
         {
           blankTubes = false;
           blankLEDs = true;
+          blankSeparators = false;
           break;
         }
       case BLANK_MODE_BOTH:
         {
           blankTubes = true;
           blankLEDs = true;
+          blankSeparators = false;
+          break;
+        }
+      case BLANK_MODE_ALL:
+        {
+          blankTubes = true;
+          blankLEDs = true;
+          blankSeparators = true;
           break;
         }
     }
   } else {
     blankTubes = false;
     blankLEDs = false;
+    blankSeparators = false;
   }
 }
 
@@ -3329,6 +3345,7 @@ void clockConfigPageHandler() {
   response_message += getDropDownOption("0", "Blank tubes only", (blankMode == 0));
   response_message += getDropDownOption("1", "Blank LEDs only", (blankMode == 1));
   response_message += getDropDownOption("2", "Blank tubes and LEDs", (blankMode == 2));
+  response_message += getDropDownOption("3", "Blank everything", (blankMode == 3));
   response_message += getDropDownFooter();
 
   boolean hoursDisabled = (dayBlanking < 4);

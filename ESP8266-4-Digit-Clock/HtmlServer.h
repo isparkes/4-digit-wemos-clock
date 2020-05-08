@@ -14,7 +14,7 @@
 
 // -----------------------------------------------------
 
-#define HTML_TITLE "ESP 6-Digit Numitron Clock"
+#define HTML_TITLE "Wemos 4-Digit Clock"
 
 extern ESP8266WebServer server;
 extern ESP8266HTTPUpdateServer httpUpdater;

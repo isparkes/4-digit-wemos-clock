@@ -119,6 +119,7 @@ unsigned long blankSuppressedMillis = 0;   // The end time of the blanking, 0 if
 unsigned long blankSuppressedSelectionTimoutMillis = 0;   // Used for determining the end of the blanking period selection timeout
 boolean blankTubes = false;
 boolean blankLEDs = false;
+boolean blankSeparators = false;
 
 // --------------- Ambient light dimming ---------------
 
