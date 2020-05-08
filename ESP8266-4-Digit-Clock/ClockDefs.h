@@ -21,7 +21,7 @@
 
 // -------------------------------------------------------------------------------
 // Software version shown in config menu
-#define SOFTWARE_VERSION      4
+#define SOFTWARE_VERSION      5
 
 // -------------------------------------------------------------------------------
 #define MIN_DIM_DEFAULT       4  // The default minimum dim count
