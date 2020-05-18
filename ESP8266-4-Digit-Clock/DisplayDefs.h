@@ -5,25 +5,13 @@
 #ifndef DisplayDefs_h
 #define DisplayDefs_h
 
-// Display handling
-#define DISPLAY_COUNT_MIN     300                     // Minimum value we can set to
-#define DIGIT_DISPLAY_COUNT   5000                    // The number of times to traverse inner fade loop per digit
-#define DISPLAY_COUNT_MAX     DIGIT_DISPLAY_COUNT - 1 // Maximum value we can set to
-#define DIGIT_DISPLAY_START   0                       // Inner loop start point per digit
-#define DIGIT_DISPLAY_ON      0                       // Switch on the digit after the "front porch" by default
-#define DIGIT_DISPLAY_OFF     DIGIT_DISPLAY_COUNT     // Switch off the digit at the end by default
-#define DIGIT_DISPLAY_NEVER   -1                      // When we don't want to switch on or off (i.e. blanking)
-
-// Dimming value
-const int DIM_VALUE = DIGIT_DISPLAY_COUNT / 5;
-
 // Display mode, set per digit
 #define BLANKED  0
 #define DIMMED   1
-#define FADE     2
-#define NORMAL   3
-#define BLINK    4
-#define SCROLL   5
+#define NORMAL   2
+#define FADE     3
+#define SCROLL   4
+#define BLINK    5
 #define BRIGHT   6
 
 #define DIAGS_SPIFFS      0
@@ -41,8 +29,11 @@ const int DIM_VALUE = DIGIT_DISPLAY_COUNT / 5;
 #define LED_BLINK_SLOW      1
 #define LED_BLINK_FAST      2
 #define LED_BLINK_DBL       3
+#define LED_ON              4
+#define LED_OFF             5
+#define LED_AM_PM           6
 #define LED_BLINK_DEFAULT   LED_RAILROAD
-#define LED_MODE_MAX        3
+#define LED_MODE_MAX        6
 
 #define DIGIT_COUNT 4
 

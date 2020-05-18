@@ -21,12 +21,12 @@
 
 // -------------------------------------------------------------------------------
 // Software version shown in config menu
-#define SOFTWARE_VERSION    1
+#define SOFTWARE_VERSION      5
 
 // -------------------------------------------------------------------------------
-#define MIN_DIM_DEFAULT       500  // The default minimum dim count
-#define MIN_DIM_MIN           250  // The minimum dim count
-#define MIN_DIM_MAX           1000 // The maximum dim count
+#define MIN_DIM_DEFAULT       4  // The default minimum dim count
+#define MIN_DIM_MIN           2  // The minimum dim count
+#define MIN_DIM_MAX           20 // The maximum dim count
 
 // -------------------------------------------------------------------------------
 #define SENSOR_LOW_MIN        0
@@ -141,8 +141,6 @@
 
 // -------------------------------------------------------------------------------
 // Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
-
-// Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
 #define TEMP_MODE_MIN                   0
 #define TEMP_MODE_SECS                  0 // Display mins and secs
 #define TEMP_MODE_DATE                  1 // Display the date
@@ -183,7 +181,8 @@
 #define BLANK_MODE_TUBES                0  // Use blanking for tubes only 
 #define BLANK_MODE_LEDS                 1  // Use blanking for LEDs only
 #define BLANK_MODE_BOTH                 2  // Use blanking for tubes and LEDs
-#define BLANK_MODE_MAX                  2
+#define BLANK_MODE_ALL                  3  // Use blanking for tubes, LEDs and separators
+#define BLANK_MODE_MAX                  3
 #define BLANK_MODE_DEFAULT              2
 
 // -------------------------------------------------------------------------------
@@ -225,9 +224,12 @@
 #define SLOTS_MODE_DEFAULT              1
 
 // -------------------------------------------------------------------------------
-#define SEPARATOR_DIM_FACTOR_MIN        10
-#define SEPARATOR_DIM_FACTOR_MAX        100
-#define SEPARATOR_DIM_FACTOR_DEFAULT    100
+#define SEP_OFF                         0
+#define SEP_DIM                         1
+#define SEP_MED                         2
+#define SEP_BRIGHT                      3
+#define SEP_FULL                        4
+#define SEP_DIM_DEFAULT                 SEP_FULL
 
 // -------------------------------------------------------------------------------
 #define BACKLIGHT_DIM_FACTOR_MIN        10
@@ -260,18 +262,5 @@
 #define SYNC_YEAR 0
 
 // -------------------------------------------------------------------------------
-
-void setPinModes() {
-  // Set up shift registers
-  pinMode(LATCHPin, OUTPUT);
-  pinMode(CLOCKPin, OUTPUT);
-  pinMode(DATA1Pin, OUTPUT);
-  pinMode(LEDPin1, OUTPUT);
-  pinMode(LEDPin2, OUTPUT);
-  pinMode(LEDPin2, OUTPUT);
-
-  // NOTE: Grounding the input pin causes it to actuate
-  pinMode(inputPin1, INPUT_PULLUP);
-}
 
 #endif

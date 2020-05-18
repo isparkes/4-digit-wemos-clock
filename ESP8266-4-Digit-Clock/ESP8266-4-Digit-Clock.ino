@@ -30,7 +30,6 @@
 // Standard Libraries
 #include <FS.h>
 #include <Wire.h>
-#include <DNSServer.h>          //https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer
 
 // Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
 // using the ZIP files in the "libraries" directory
@@ -38,7 +37,6 @@
 #include <NeoPixelBus.h>        // https://github.com/Makuna/NeoPixelBus (Makuna 2.3.4)
 #include <WiFiManager.h>        // https://github.com/tzapu/WiFiManager  (tzapu 0.14.0)
 #include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson (bblanchon 5.13.2)
-#include <ESPAsyncUDP.h>        // https://github.com/me-no-dev/ESPAsyncUDP (master HEAD)
 
 // Other parts of the code, broken out for clarity
 #include "Globals.h"
@@ -48,9 +46,209 @@
 #include "ClockUtils.h"
 #include "ClockDefs.h"
 #include "ESP_DS1307.h"
+#include "NtpAsync.h"
 #include "HtmlServer.h"
 
-#define DEBUG_DEFAULT true
+#define DEBUG_OFF
+
+NtpAsync ntpAsync;
+
+//**********************************************************************************
+//**********************************************************************************
+//*                               ISR Display Multiplex                            *
+//**********************************************************************************
+//**********************************************************************************
+#define INT_MUX_COUNTS         800
+#define COUNTS_PER_DIGIT       20
+#define COUNTS_PER_DIGIT_DIM   8
+
+#define NEXT_DIGIT    B00000000
+#define SWCH_DIGIT    B01000000
+#define OFF__DIGIT    B10000000
+#define BLNK_DIGIT    B11000000
+
+volatile byte digitStep = 0;
+volatile byte phaseStep = 0;
+
+// Overall Phase array
+byte phaseTime[][4] = {{ 0, 0, 0, 0},
+                       { 0, 0, 0, 0},
+                       { 0, 0, 0, 0}};
+
+// display arrays
+byte valueBufferCurr[4] = { 0, 0, 0, 0};
+byte valueBufferPrev[4] = { 0, 0, 0, 0};
+
+// Cached values for this digit: updated only between digits
+byte ptCache[] = {20 | NEXT_DIGIT, 0, 0};
+byte na = 0;
+byte cna = 0;
+
+// ************************************************************
+// Set a digit with the given value, for a given digit
+// ************************************************************
+ICACHE_RAM_ATTR void digitOn(byte digit, byte value) {
+  byte dispValue = value | anodes[digit];
+  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
+}
+
+// ************************************************************
+// Turn the anodes off, but leave the cathodes alone
+// ************************************************************
+ICACHE_RAM_ATTR void digitOff(byte digit, byte value) {
+  byte dispValue = value;
+  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, dispValue);
+}
+
+// ************************************************************
+// Perform the shift out to the shift register
+// ************************************************************
+ICACHE_RAM_ATTR void shiftOut(uint8_t _loadPin,
+              uint8_t _dataPin1,
+              uint8_t _clockPin,
+              uint8_t _val1) {
+  uint8_t i;
+
+  digitalWrite(_loadPin, LOW);
+  for (i = 0; i < 8; i++) {
+    digitalWrite(_dataPin1, !!(_val1 & (1 << (7 - i))));
+    digitalWrite(_clockPin, HIGH);
+    digitalWrite(_clockPin, LOW);
+  }
+  digitalWrite(_loadPin, HIGH);
+}
+
+// ************************************************************
+// Interrupt routine for scheduled interrupts
+//  - performs the programmed action and then schedules the next
+//    interrupt for the next display update
+//   - Each digit can consist of up to 3 phases:
+//     1 - turn on for the "fade from" digit
+//     2 - switch to the "fade to" digit
+//     3 - turn the digit off
+// ************************************************************
+ICACHE_RAM_ATTR void displayUpdate() {
+  byte phT = ptCache[phaseStep];
+
+  unsigned int nextIntTime = phT & 0x3f;
+  byte nextPhase = phT >> 6;
+
+  // deal with "Blank this digit" - don't turn on at all - instead turn off and wait
+  if (nextPhase == 3) {
+    phaseStep = 2;
+    nextPhase = NEXT_DIGIT;
+  }
+
+  switch (phaseStep) {
+    case 0: {
+      digitOn(digitStep, na);
+      break;
+    }
+    case 1: {
+      digitOn(digitStep, cna);
+      break;
+    }
+    case 2: {
+      digitOff(digitStep, na);
+      break;
+    }
+  }
+
+  phaseStep = nextPhase;
+  if (phaseStep == 0) {
+
+    digitStep++;
+    if (digitStep > 3) {
+      digitStep = 0;
+      if (separatorDimFactor > 0) ledsOn();
+    }
+
+    // get the cached values when we change digit
+    ptCache[0] = phaseTime[0][digitStep];
+    ptCache[1] = phaseTime[1][digitStep];
+    ptCache[2] = phaseTime[2][digitStep];
+    na = valueBufferCurr[digitStep];
+    cna = valueBufferPrev[digitStep];
+  }
+  
+  if (digitStep == separatorDimFactor) {
+    ledsOff();
+  }
+
+  timer1_write(nextIntTime * INT_MUX_COUNTS);
+}
+
+// ************************************************************
+// Set the schedule and display values for a single digit, used in
+// display preparation, not needed during at interrupt time
+//
+// digit: The digit to set 0..(DIGIT_COUNT-1)
+// value: The value to show
+// currValue: the value we are fading from
+// dimFactor:   1..COUNTS_PER_DIGIT : COUNTS_PER_DIGIT = not dimmed
+// switchTime: 0..COUNTS_PER_DIGIT-1 : 0 = no switch (undimmed)
+// switchTime: 0..dimValue-1 : 0 = no switch (dimmed)
+// ************************************************************
+void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switchTime, bool blanked) {
+  valueBufferCurr[digit] = decodeDigit[value%10];
+  valueBufferPrev[digit] = decodeDigit[currValue%10];
+
+  if (dimFactor < 1) {
+    dimFactor = 1; 
+  }
+
+  if (dimFactor > COUNTS_PER_DIGIT) {
+    dimFactor = COUNTS_PER_DIGIT;
+  }
+
+  if (switchTime >= dimFactor) {
+    switchTime = dimFactor - 1;
+    if (switchTime < 1) {
+      // can't show fading when we are so dim
+      switchTime = 0;
+    }
+  }
+
+  // Don't switch if the old and the new are the same
+  if ((switchTime > 0) && (value == currValue)) {
+    switchTime = 0;
+  }
+
+  if (blanked) {
+    // blank in Ph0
+    phaseTime[0][digit] = COUNTS_PER_DIGIT | BLNK_DIGIT;
+    phaseTime[1][digit] = 0;
+    phaseTime[2][digit] = 0;
+  } else {
+    // Undimmed
+    if (dimFactor == COUNTS_PER_DIGIT) {
+      if (switchTime == 0) {
+        // simplest case, full brightness no switch, we just deal with Ph0
+        phaseTime[0][digit] = COUNTS_PER_DIGIT | NEXT_DIGIT;
+        phaseTime[1][digit] = 0;
+        phaseTime[2][digit] = 0;
+      } else {
+        // doing a switch at full brightness, use Ph0 and Ph1
+        phaseTime[0][digit] = switchTime | SWCH_DIGIT;
+        phaseTime[1][digit] = (COUNTS_PER_DIGIT - switchTime) | NEXT_DIGIT;
+        phaseTime[2][digit] = 0;
+      }
+    } else {
+      // Dimmed
+      if (switchTime == 0) {
+        // dimmed no switch, use Ph0 and Ph2
+        phaseTime[0][digit] = dimFactor | OFF__DIGIT;
+        phaseTime[1][digit] = 0;
+        phaseTime[2][digit] = (COUNTS_PER_DIGIT - dimFactor) | NEXT_DIGIT;      
+      } else {
+        // doing a switch while dimmed, use Ph0, Ph1 and Ph2
+        phaseTime[0][digit] = switchTime | SWCH_DIGIT;
+        phaseTime[1][digit] = (dimFactor - switchTime) | OFF__DIGIT;
+        phaseTime[2][digit] = (COUNTS_PER_DIGIT - dimFactor) | NEXT_DIGIT;      
+      }
+    }
+  }
+}
 
 //**********************************************************************************
 //**********************************************************************************
@@ -59,28 +257,68 @@
 //**********************************************************************************
 void setup()
 {
+  int postStep = 0;
   WiFiManager wifiManager;
 
-  setupDebug(DEBUG_DEFAULT);
+  // set up the NTP component and wire up the "got time update" callback
+  ntpAsync.setUp();
+  NewTimeCallback ntcb = newTimeUpdateReceived;
+  ntpAsync.setNewTimeCallback(ntcb);
+  
+#ifdef DEBUG
+  setupDebug(true);
   debugMsg("");
   debugMsg("--------------------- START ---------------------");
-  wifiManager.setDebugOutput(getDebug());
+  wifiManager.setDebugOutput(true);
+  
+  DebugCallback dbcb = debugMsg;
+  ntpAsync.setDebugCallback(dbcb);
+  ntpAsync.setDebugOutput(true);
+#endif
 
   // Set up the LED output
   leds.Begin();
 
+  // Set up the display for the diags - this sets up the interrupt routine
+  allBright();
+  outputDisplay();
+
+  debugMsg("Starting display interrupt handler");
+  
+  timer1_attachInterrupt(displayUpdate); // Add ISR Function
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);
+  /* Dividers:
+    TIM_DIV1 = 0,   //80MHz (80 ticks/us - 104857.588 us max)
+    TIM_DIV16 = 1,  //5MHz (5 ticks/us - 1677721.4 us max)
+    TIM_DIV256 = 3  //312.5Khz (1 tick = 3.2us - 26843542.4 us max)
+  Reloads:
+    TIM_SINGLE  0 //on interrupt routine you need to write a new value to start the timer again
+    TIM_LOOP  1 //on interrupt the counter will start with the same value again
+  */
+
+  timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
+
+  loadNumberArrayPOSTMessage(postStep++);
+
+  // Start I2C now so that the update from NTP can be sent to the RTC immediately
+  Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
+  debugMsg("I2C master started");
+
+  loadNumberArrayPOSTMessage(postStep++);
+
   setPinModes();
 
-  // turn off all digits
-  digitOff(0, 0);
-
+  loadNumberArrayPOSTMessage(postStep++);
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
+  loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 
-  for (int i = 0; i < 25 ; i++) button1.checkButton(millis());
-  
+  loadNumberArrayPOSTMessage(postStep++);
+  for (int i = 0 ; i < 25 ; i++) {
+    button1.checkButton(millis());
+  }
   if (button1.isButtonPressedNow()) {
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
     factoryReset();
@@ -88,6 +326,9 @@ void setup()
     ESP.restart();
   }
 
+  loadNumberArrayPOSTMessage(postStep++);
+
+  debugMsg("Getting SPIFFS");
   if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
     factoryReset();
@@ -96,58 +337,13 @@ void setup()
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_GREEN);
   }
 
-  wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
-  wifiManager.setAPCallback(configModeCallback);
-
-  setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
-
-  boolean connected = false;
-  connected = wifiManager.autoConnect("ESPClock", "SetMeUp!");
-
-  if (connected) {
-    debugMsg("Connected!");
-    setDiagnosticLED(DIAGS_WIFI, STATUS_GREEN);
-  } else {
-    debugMsg("Could NOT Connect");
-    setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
-  }
-
-  IPAddress apIP = WiFi.softAPIP();
-  IPAddress myIP = WiFi.localIP();
-  debugMsg("AP IP address: " + formatIPAsString(apIP));
-  debugMsg("IP address: " + formatIPAsString(myIP));
-
-  // Set the default TZ for the local time interpretation
-  setenv("TZ", tzs.c_str(), 0);
-
-  // If we lose the connection, we try to recover it
-  WiFi.setAutoReconnect(true);
-
-  // See if we can already get the time
-  getTimeFromTimeZoneServer();
-  setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
-  delay(1500);
-  if (nextUpdateFromServer > 0) {
-    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
-  } else {
-    setDiagnosticLED(DIAGS_NTP, STATUS_RED);
-  }
-
-  debugMsg("Starting HTTP server");
-  setServerPageHandlers();
-  server.begin();
-  debugMsg("HTTP server started");
-
-  // Enable OTA updates
-  httpUpdater.setup(&server, "/update", "admin", "update");
-
-  setPIRPullup(usePIRPullup);
-
   // **********************************************************************
 
   // Clear down any spurious button action
   button1.reset();
 
+  loadNumberArrayPOSTMessage(postStep++);
+  testMode = false;
   if (testMode) {
     debugMsg("Doing test sequence");
     boolean oldUseLDR = useLDR;
@@ -214,12 +410,78 @@ void setup()
 
   button1.reset();
 
+  // **********************************************************************
+
+  loadNumberArrayPOSTMessage(postStep++);
+  wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
+  wifiManager.setAPCallback(configModeCallback);
+
+  setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
+
+  loadNumberArrayPOSTMessage(postStep++);
+
+  boolean connected = false;
+  connected = wifiManager.autoConnect(WiFi.hostname().c_str(), "SetMeUp!");
+
+  if (connected) {
+    debugMsg("Connected!");
+    setDiagnosticLED(DIAGS_WIFI, STATUS_GREEN);
+  } else {
+    debugMsg("Could NOT Connect");
+    setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
+  }
+
+  IPAddress apIP = WiFi.softAPIP();
+  IPAddress myIP = WiFi.localIP();
+  debugMsg("AP IP address: " + formatIPAsString(apIP));
+  debugMsg("IP address: " + formatIPAsString(myIP));
+
+  // If we lose the connection, we try to recover it
+  WiFi.setAutoReconnect(true);
+
+  // See if we can already get the time
+  loadNumberArrayPOSTMessage(postStep++);
+  ntpAsync.getTimeFromNTP();
+  setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
+  long startSeachMs = millis();
+  bool needUpdate = true;
+  while(((millis() - startSeachMs) < 10000) && needUpdate) {
+    delay(500);
+    ntpAsync.getTimeFromNTP();
+    if (ntpAsync.ntpTimeValid(millis()) > 0) {
+      debugMsg("Got update from NTP, exiting loop");
+      needUpdate = false;
+    }
+  }
+
+  if (needUpdate) {
+    setDiagnosticLED(DIAGS_NTP, STATUS_RED);
+  } else {
+    setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
+  }
+
+  // loadNumberArrayPOSTMessage(postStep++);
+  setServerPageHandlers();
+  server.begin();
+  debugMsg("HTTP server started");
+
+  // Enable OTA updates
+  loadNumberArrayPOSTMessage(postStep++);
+  httpUpdater.setup(&server, "/update", "admin", "update");
+
+  loadNumberArrayPOSTMessage(postStep++);
+  if (mdns.begin(WiFi.hostname(), WiFi.localIP())) {
+    debugMsg("MDNS responder started as http://" + WiFi.hostname() + ".local");
+    mdns.addService("http", "tcp", 80);
+  }
+
+  loadNumberArrayPOSTMessage(postStep++);
+  setPIRPullup(usePIRPullup);
+
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
 
-  Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
-  debugMsg("I2C master started");
-
+  // loadNumberArrayPOSTMessage(postStep++);
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
@@ -238,9 +500,15 @@ void setup()
   // don't blank anything right now
   blanked = false;
   setTubesAndLEDSBlankMode();
+  // loadNumberArrayPOSTMessage(postStep++);
+
+  // mark that we have done the EEPROM setup
+  testMode = false;
+  saveConfigToSpiffs();
 
   debugMsg("Exit startup in 1 second");
   getStatsFromSpiffs();
+  loadNumberArrayPOSTMessage(postStep++);
   delay(1000);
 }
 
@@ -252,15 +520,20 @@ void setup()
 void loop()
 {
   server.handleClient();
+  mdns.update();
 
   nowMillis = millis();
+  static uint16_t lastSec = second();
 
   // shows us how fast the inner loop is running
   impressionsPerSec++;
 
   // -------------------------------------------------------------------------------
 
-  if (abs(nowMillis - lastCheckMillis) >= 1000) {
+  if (lastSec != second()) {
+    lastSec = second();
+    lastCheckMillis = nowMillis;
+
     if ((second() == 0) && (!triggeredThisSec)) {
       if ((minute() == 0)) {
         if (hour() == 0) {
@@ -278,8 +551,6 @@ void loop()
     if ((second() > 0) && triggeredThisSec) {
       triggeredThisSec = false;
     }
-
-    lastCheckMillis = nowMillis;
   }
 
   // Check button, we evaluate below
@@ -307,7 +578,7 @@ void loop()
     saveConfigToSpiffs();
 
     // Preset the display
-    allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+    allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
 
     nextMode = currentMode;
   } else if (button1.isButtonPressedReleased1S()) {
@@ -320,7 +591,7 @@ void loop()
       saveConfigToSpiffs();
 
       // Preset the display
-      allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+      allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
     }
 
     nextMode = currentMode;
@@ -343,6 +614,8 @@ void loop()
   if (digitalRead(pirPin) == HIGH) {
     pirConsecutiveCounts++;
   }
+
+  delay(10);
 
   outputDisplay();
 }
@@ -413,12 +686,18 @@ void performOncePerSecondProcessing() {
   // Reset PIR debounce
   pirConsecutiveCounts = 0;
 
-  // NTP updating
-  nextUpdateFromServer--;
-
-  if (nextUpdateFromServer < 0) {
-    getTimeFromTimeZoneServer();
+  if (ntpAsync.getNextUpdate(nowMillis) < 0) {
+    ntpAsync.getTimeFromNTP();
   }
+
+  // caching these makes the WiFi handling a lot smoother
+  disp_sec = second();
+  if(hourMode) {
+    disp_hour = hourFormat12();
+  } else {
+    disp_hour = hour();
+  }
+  disp_min = minute();
 }
 
 // ************************************************************
@@ -427,11 +706,11 @@ void performOncePerSecondProcessing() {
 void performOncePerMinuteProcessing() {
   debugMsg("---> OncePerMinuteProcessing");
 
-  debugMsg("Next update: " + String(nextUpdateFromServer));
+  debugMsg("nu: " + String(ntpAsync.getNextUpdate(nowMillis)));
 
-  if (!ntpTimeValid()) {
-    getRTCTime(true);
-  }
+  // Set the internal time to the time from the RTC even if we are still in
+  // NTP valid time. This is more accurate than using the internal time source
+  getRTCTime(true);
 
   // Usage stats
   uptimeMins++;
@@ -439,6 +718,12 @@ void performOncePerMinuteProcessing() {
   if (!blankTubes) {
     tubeOnTimeMins++;
   }
+
+  ampm = isAM();
+
+  // caching these makes the WiFi handling a lot smoother
+  disp_day = day();
+  disp_month = month();
 }
 
 // ************************************************************
@@ -474,56 +759,79 @@ void setLeds()
   float fixedDim = (float) backlightDimFactor / (float) 100;
   
   // calculate the PWM factor, goes between minDim% and 100%
-  float dimFactor = (float) digitOffCount / (float) DIGIT_DISPLAY_OFF * fixedDim;
+  float dimFactor = (float) digitOffCount / (float) ISR_STEPS * fixedDim;
   
   // Calculate the brightness factor based on the "pulse"
   float pwmFactor = (float) secsDelta / (float) 1000.0;
 
-  switch (ledMode) {
-    case LED_RAILROAD:
-      {
-        if (upOrDown) {
-          led1State = true;
-          led2State = false;
-        } else {
-          led1State = false;
-          led2State = true;
+  if (blankSeparators) {
+    led1State = false;
+    led2State = false;
+  } else {
+    switch (ledMode) {
+      case LED_RAILROAD:
+        {
+          if (upOrDown) {
+            led1State = true;
+            led2State = false;
+          } else {
+            led1State = false;
+            led2State = true;
+          }
+          break;
         }
-        break;
-      }
-    case LED_BLINK_SLOW:
-      {
-        if (upOrDown) {
+      case LED_BLINK_SLOW:
+        {
+          if (upOrDown) {
+            led1State = true;
+            led2State = true;
+          } else {
+            led1State = false;
+            led2State = false;
+          }
+          break;
+        }
+      case LED_BLINK_FAST:
+        {
+          if (secsDeltaAbs < 500) {
+            led1State = true;
+            led2State = true;
+          } else {
+            led1State = false;
+            led2State = false;
+          }
+          break;
+        }
+      case LED_BLINK_DBL:
+        {
+          if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
+            led1State = true;
+            led2State = true;
+          } else {
+            led1State = false;
+            led2State = false;
+          }
+          break;
+        }
+      case LED_ON:
+        {
           led1State = true;
           led2State = true;
-        } else {
+          break;
+        }
+      case LED_OFF:
+        {
           led1State = false;
           led2State = false;
+          break;
         }
-        break;
-      }
-    case LED_BLINK_FAST:
-      {
-        if (secsDeltaAbs < 500) {
-          led1State = true;
-          led2State = true;
-        } else {
-          led1State = false;
-          led2State = false;
+      case LED_AM_PM:
+        {
+          led1State = !ampm; // bottom LED
+          led2State = ampm; // top LED
+          break;
         }
-        break;
-      }
-    case LED_BLINK_DBL:
-      {
-        if ((secsDeltaAbs < 100) || ((secsDeltaAbs > 200) && (secsDeltaAbs < 300))) {
-          led1State = true;
-          led2State = true;
-        } else {
-          led1State = false;
-          led2State = false;
-        }
-        break;
-      }
+    }
   }
 
   if (blankLEDs) {
@@ -567,17 +875,17 @@ void setLeds()
         break;
       case BACKLIGHT_COLOUR_TIME:
         for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, fixedDim);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, fixedDim);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, fixedDim);
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[numberArray[i]], 1, fixedDim);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[numberArray[i]], 1, fixedDim);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[numberArray[i]], 1, fixedDim);
         }
         outputLEDBuffer();
         break;
       case BACKLIGHT_COLOUR_TIME_DIM:
         for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[NumberArray[i]], 1, dimFactor);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[NumberArray[i]], 1, dimFactor);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[NumberArray[i]], 1, dimFactor);
+          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[numberArray[i]], 1, dimFactor);
+          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[numberArray[i]], 1, dimFactor);
+          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[numberArray[i]], 1, dimFactor);
         }
         outputLEDBuffer();
         break;
@@ -656,11 +964,11 @@ void setNextMode(int displayMode) {
   switch (displayMode) {
     case MODE_TIME: {
         loadNumberArrayTime();
-        allFadeOrNormal(APPLY_LEAD_0_BLANK);
+        allNormal(APPLY_LEAD_0_BLANK);
         break;
       }
     case MODE_HOURS_SET: {
-        if (ntpTimeValid()) {
+        if (ntpAsync.ntpTimeValid(nowMillis)) {
           // skip past the time and date settings
           setNewNextMode(MODE_12_24);
         }
@@ -949,7 +1257,7 @@ void processCurrentMode(int displayMode) {
             loadNumberArrayConfIntWide(lastImpressionsPerSec);
           }
 
-          allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+          allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
 
         } else {
           if (slotsMode > SLOTS_MODE_MIN) {
@@ -960,7 +1268,7 @@ void processCurrentMode(int displayMode) {
               transition.setAlternateValues();
               loadNumberArrayTime();
               transition.setRegularValues();
-              allFadeOrNormal(DO_NOT_APPLY_LEAD_0_BLANK);
+              allNormal(DO_NOT_APPLY_LEAD_0_BLANK);
 
               transition.start(nowMillis);
             }
@@ -979,34 +1287,29 @@ void processCurrentMode(int displayMode) {
             if (!msgDisplaying) {
               // no slots mode, check if we are in valueDisplayMode
               if (valueDisplayTime > 0) {
-                loadNumberArrayValue();
-                loadDisplayConfigValue();
+                loadNumberArrayConfIntWide(valueToShow);
+                loadDisplaySetValueType();
               } else {
                 // normal time
                 loadNumberArrayTime();
-                allFadeOrNormal(APPLY_LEAD_0_BLANK);
+                allNormal(APPLY_LEAD_0_BLANK);
               }
             }
           } else {
             // no slots mode, check if we are in valueDisplayMode
             if (valueDisplayTime > 0) {
-              loadNumberArrayValue();
-              loadDisplayConfigValue();
+              loadNumberArrayConfIntWide(valueToShow);
+              loadDisplaySetValueType();
             } else {
               // normal time
               loadNumberArrayTime();
-              allFadeOrNormal(APPLY_LEAD_0_BLANK);
+              allNormal(APPLY_LEAD_0_BLANK);
             }
           }
         }
         break;
       }
     case MODE_HOURS_SET: {
-        if (ntpTimeValid()) {
-          // skip past the time and date settings
-          nextMode += 6;
-          currentMode += 6;
-        }
         if (button1.isButtonPressedAndReleased()) {
           incHours();
         }
@@ -1158,7 +1461,7 @@ void processCurrentMode(int displayMode) {
         }
         loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
-        fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
+        fadeStep = ISR_STEPS / fadeSteps;
         break;
       }
     case MODE_FADE_STEPS_DOWN: {
@@ -1170,7 +1473,7 @@ void processCurrentMode(int displayMode) {
         }
         loadNumberArrayConfInt(fadeSteps, displayMode);
         displayConfig();
-        fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
+        fadeStep = ISR_STEPS / fadeSteps;
         break;
       }
     case MODE_DISPLAY_SCROLL_STEPS_DOWN: {
@@ -1443,22 +1746,20 @@ void cycleColours3(int colors[3]) {
 // Break the time into displayable digits
 // ************************************************************
 void loadNumberArrayTime() {
-  NumberArray[3] = minute() % 10;
-  NumberArray[2] = minute() / 10;
-  if (hourMode) {
-    NumberArray[1] = hourFormat12() % 10;
-    NumberArray[0] = hourFormat12() / 10;
-  } else {
-    NumberArray[1] = hour() % 10;
-    NumberArray[0] = hour() / 10;
-  }
+  numberArray[3] = disp_min % 10;
+  numberArray[2] = disp_min / 10;
+  numberArray[1] = disp_hour % 10;
+  numberArray[0] = disp_hour / 10;
 }
 
+// ************************************************************
+// Break the minutes and seconds into displayable digits
+// ************************************************************
 void loadNumberArrayMinsSecs() {
-  NumberArray[3] = second() % 10;
-  NumberArray[2] = second() / 10;
-  NumberArray[1] = minute() % 10;
-  NumberArray[0] = minute() / 10;
+  numberArray[3] = disp_sec % 10;
+  numberArray[2] = disp_sec / 10;
+  numberArray[1] = disp_min % 10;
+  numberArray[0] = disp_min / 10;
 }
 
 // ************************************************************
@@ -1467,16 +1768,16 @@ void loadNumberArrayMinsSecs() {
 void loadNumberArrayDayMonth() {
   switch (dateFormat) {
     case DATE_FORMAT_MMDD:
-      NumberArray[3] = day() % 10;
-      NumberArray[2] = day() / 10;
-      NumberArray[1] = month() % 10;
-      NumberArray[0] = month() / 10;
+      numberArray[3] = disp_day % 10;
+      numberArray[2] = disp_day / 10;
+      numberArray[1] = disp_month % 10;
+      numberArray[0] = disp_month / 10;
       break;
     case DATE_FORMAT_DDMM:
-      NumberArray[3] = month() % 10;
-      NumberArray[2] = month() / 10;
-      NumberArray[1] = day() % 10;
-      NumberArray[0] = day() / 10;
+      numberArray[3] = disp_month % 10;
+      numberArray[2] = disp_month / 10;
+      numberArray[1] = disp_day % 10;
+      numberArray[0] = disp_day / 10;
       break;
   }
 }
@@ -1485,60 +1786,60 @@ void loadNumberArrayDayMonth() {
 // Break the year into displayable digits
 // ************************************************************
 void loadNumberArrayYear() {
-  NumberArray[3] = (year() / 1) % 10;
-  NumberArray[2] = (year() / 10) % 10;
-  NumberArray[1] = (year() / 100) % 10;
-  NumberArray[0] = (year() / 1000) % 10;
+  numberArray[3] = (year() / 1) % 10;
+  numberArray[2] = (year() / 10) % 10;
+  numberArray[1] = (year() / 100) % 10;
+  numberArray[0] = (year() / 1000) % 10;
 }
 
 // ************************************************************
 // Break the LDR reading into displayable digits
 // ************************************************************
 void loadNumberArrayLDR() {
-  NumberArray[3] = (digitOffCount / 1) % 10;
-  NumberArray[2] = (digitOffCount / 10) % 10;
-  NumberArray[1] = (digitOffCount / 100) % 10;
-  NumberArray[0] = (digitOffCount / 1000) % 10;
+  numberArray[3] = (digitOffCount / 1) % 10;
+  numberArray[2] = (digitOffCount / 10) % 10;
+  numberArray[1] = (digitOffCount / 100) % 10;
+  numberArray[0] = (digitOffCount / 1000) % 10;
 }
 
 // ************************************************************
 // Test digits
 // ************************************************************
 void loadNumberArrayTestDigits() {
-  NumberArray[3] = second() % 10;
-  NumberArray[2] = second() % 10;
-  NumberArray[1] = second() % 10;
-  NumberArray[0] = second() % 10;
+  numberArray[3] = second() % 10;
+  numberArray[2] = second() % 10;
+  numberArray[1] = second() % 10;
+  numberArray[0] = second() % 10;
 }
 
 // ************************************************************
 // Show an integer configuration value
 // ************************************************************
 void loadNumberArrayConfInt(int confValue, byte mode) {
-  NumberArray[3] = (confValue / 1) % 10;
-  NumberArray[2] = (confValue / 10) % 10;
-  NumberArray[1] = mode % 10;
-  NumberArray[0] = mode / 10;
+  numberArray[3] = (confValue / 1) % 10;
+  numberArray[2] = (confValue / 10) % 10;
+  numberArray[1] = mode % 10;
+  numberArray[0] = mode / 10;
 }
 
 // ************************************************************
 // Show an integer configuration value, use all 4 digits
 // ************************************************************
 void loadNumberArrayConfIntWide(int confValue) {
-  NumberArray[3] = (confValue / 1) % 10;
-  NumberArray[2] = (confValue / 10) % 10;
-  NumberArray[1] = (confValue / 100) % 10;
-  NumberArray[0] = (confValue / 1000) % 10;
+  numberArray[3] = (confValue / 1) % 10;
+  numberArray[2] = (confValue / 10) % 10;
+  numberArray[1] = (confValue / 100) % 10;
+  numberArray[0] = (confValue / 1000) % 10;
 }
 
 // ************************************************************
 // Show an configuration mode value
 // ************************************************************
 void loadNumberArrayConfMode(byte mode) {
-  NumberArray[3] = (mode / 1) % 10;
-  NumberArray[2] = (mode / 10) % 10;
-  NumberArray[1] = 0;
-  NumberArray[0] = 0;
+  numberArray[3] = (mode / 1) % 10;
+  numberArray[2] = (mode / 10) % 10;
+  numberArray[1] = 0;
+  numberArray[0] = 0;
 }
 
 // ************************************************************
@@ -1551,50 +1852,52 @@ void loadNumberArrayConfBool(boolean confValue, byte mode) {
   } else {
     boolInt = 0;
   }
-  NumberArray[3] = boolInt;
-  NumberArray[2] = 0;
-  NumberArray[1] = mode % 10;
-  NumberArray[0] = mode / 10;
+  numberArray[3] = boolInt;
+  numberArray[2] = 0;
+  numberArray[1] = mode % 10;
+  numberArray[0] = mode / 10;
 }
 
 // ************************************************************
 // Show an 1/4 IP configuration value
 // ************************************************************
 void loadNumberArrayIP(byte byte1) {
-  NumberArray[3] = (byte1) % 10;
-  NumberArray[2] = (byte1 / 10) % 10;
-  NumberArray[1] = (byte1 / 100) % 10;
-  NumberArray[0] = 0;
+  numberArray[3] = (byte1) % 10;
+  numberArray[2] = (byte1 / 10) % 10;
+  numberArray[1] = (byte1 / 100) % 10;
+  numberArray[0] = 0;
 }
 
 // ************************************************************
 // Show the same value on all digits
 // ************************************************************
 void loadNumberArraySameValue(byte val) {
-  NumberArray[3] = val;
-  NumberArray[2] = val;
-  NumberArray[1] = val;
-  NumberArray[0] = val;
-}
-
-// ************************************************************
-// Show the value we got over I2C
-// ************************************************************
-void loadNumberArrayValue() {
-  NumberArray[3] = valueToShow[1] & 0xf;
-  NumberArray[2] = valueToShow[1] >> 4;
-  NumberArray[1] = valueToShow[0] & 0xf;
-  NumberArray[0] = valueToShow[0] >> 4;
+  numberArray[3] = val;
+  numberArray[2] = val;
+  numberArray[1] = val;
+  numberArray[0] = val;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
-void loadDisplayConfigValue() {
+void loadDisplaySetValueType() {
   displayType[0] = valueDisplayType[0] >> 4;
   displayType[1] = valueDisplayType[0] & 0xf;
   displayType[2] = valueDisplayType[1] >> 4;
   displayType[3] = valueDisplayType[1] & 0xf;
+}
+
+// ************************************************************
+// Display preset - used for Power On Self Test
+// ************************************************************
+void loadNumberArrayPOSTMessage(int postValue) {
+  loadNumberArrayConfIntWide(postValue);
+
+  // Load manually into the display buffer - the display loop is not working yet
+  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
+    setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, false);
+  }
 }
 
 // ************************************************************
@@ -1604,85 +1907,36 @@ void loadDisplayConfigValue() {
 // This is the heart of the display processing!
 // ************************************************************
 void outputDisplay() {
-  int digitOnTime;
-  int digitOffTime;
-  int ledsOffTime;
-  int digitSwitchTime;
-  float digitSwitchTimeFloat;
   int tmpDispType;
 
   // used to blank all leading digits if 0
   boolean leadingZeros = true;
 
   for ( int i = 0 ; i < DIGIT_COUNT ; i ++ ) {
+    tmpDispType = displayType[i]; 
     if (blankTubes) {
       tmpDispType = BLANKED;
-    } else {
-      tmpDispType = displayType[i];
-    }
-
-    switch (tmpDispType) {
-      case BLANKED:
-        {
-          // Setting off = on means we never turn on
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = DIGIT_DISPLAY_ON;
-          break;
-        }
-      case DIMMED:
-        {
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = DIM_VALUE;
-          break;
-        }
-      case BRIGHT:
-        {
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = DIGIT_DISPLAY_OFF;
-          break;
-        }
-      case FADE:
-      case NORMAL:
-      case SCROLL:
-        {
-          digitOnTime = DIGIT_DISPLAY_ON;
-          digitOffTime = digitOffCount;
-          break;
-        }
-      case BLINK:
-        {
-          if (blinkState) {
-            digitOnTime = DIGIT_DISPLAY_ON;
-            digitOffTime = digitOffCount;
-          } else {
-            digitOnTime = DIGIT_DISPLAY_NEVER;
-            digitOffTime = DIGIT_DISPLAY_OFF;
-          }
-          break;
-        }
-    }
-
-    // Do scrollback when we are going to 0
-    if ((NumberArray[i] != currNumberArray[i]) &&
-        (NumberArray[i] == 0) &&
-        scrollback) {
-      tmpDispType = SCROLL;
+    } else if ((numberArray[i] != currNumberArray[i]) && !transition.isMessageOnDisplay(nowMillis)) {
+      if ((numberArray[i] == 0) && scrollback) {
+        tmpDispType = SCROLL;
+      } else if (fade) {
+        tmpDispType = FADE;
+      }
     }
 
     // --------------------- Scroll ---------------------
 
     // manage scrolling, each impression we show 1 fade step less of the old
-    // digit and 1 fade step more of the new
+    // digit and 1 fade step more of the new. We hold the 
     if (tmpDispType == SCROLL) {
-      digitSwitchTime = DIGIT_DISPLAY_NEVER;
-      if (NumberArray[i] != currNumberArray[i]) {
+      if (numberArray[i] != currNumberArray[i]) {
         if (fadeState[i] == 0) {
-          // Start the fade
+          // Start the scroll step
           fadeState[i] = scrollSteps;
         }
 
         if (fadeState[i] == 1) {
-          // finish the fade
+          // finish the scroll step
           fadeState[i] = 0;
           currNumberArray[i] = currNumberArray[i] - 1;
         } else if (fadeState[i] > 1) {
@@ -1692,93 +1946,97 @@ void outputDisplay() {
       }
     } else
 
-      // --------------------- Fade ---------------------
+    // --------------------- Fade ---------------------
 
-      // manage fading, each impression we show 1 fade step less of the old
-      // digit and 1 fade step more of the new
-      if (tmpDispType == FADE) {
-        float countsPerStep = (digitOffTime - digitOnTime) / fadeSteps;
+    // manage fading, each step we show 1 fade step less of the old
+    // digit and 1 fade step more of the new
+    if (tmpDispType == FADE) {
+      if (numberArray[i] != currNumberArray[i]) {
+        // Start the fade
+        if (fadeState[i] == 0) {
+          fadeState[i] = fadeSteps;
+          // debugMsg("Start Fade");
+        }
+      }
 
-        if (NumberArray[i] != currNumberArray[i]) {
-          // Start the fade
-          if (fadeState[i] == 0) {
-            // Start the fade
-            fadeState[i] = fadeSteps;
-            digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
+      if (fadeState[i] == 1) {
+        // finish the fade
+        fadeState[i] = 0;
+        currNumberArray[i] = numberArray[i];
+      } else if (fadeState[i] > 1) {
+        // Continue the fade
+        fadeState[i] = fadeState[i] - 1;
+      }
+    }
+
+    switch (tmpDispType) {
+      case BLANKED:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, true);
+          break;
+        }
+      case DIMMED:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT_DIM, 0, false);
+          break;
+        }
+      case BRIGHT:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, false);
+          break;
+        }
+      case NORMAL:
+        {
+          setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, 0, false);
+          break;
+        }
+      case FADE:
+        {
+          byte switchTime = getSwitchTime(digitOffCount, fadeState[i], fadeSteps);
+          setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, switchTime, false);
+          break;
+        }
+      case SCROLL:
+        {
+          // Set the Switch state to 1 to show the previous digit
+          setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, 1, false);
+          break;
+        }
+      case BLINK:
+        {
+          if (blinkState) {
+            setDigit(i, numberArray[i], currNumberArray[i], digitOffCount, 0, false);
+          } else {
+            setDigit(i, numberArray[i], currNumberArray[i], COUNTS_PER_DIGIT, 0, true);
           }
+          break;
         }
-
-        if (fadeState[i] == 1) {
-          // finish the fade
-          fadeState[i] = 0;
-          currNumberArray[i] = NumberArray[i];
-          digitSwitchTime = digitOffTime;
-        } else if (fadeState[i] > 1) {
-          // Continue the fade
-          fadeState[i] = fadeState[i] - 1;
-          digitSwitchTime = digitOnTime + (fadeState[i] * countsPerStep);
-        }
-      } else
-
-        // --------------------- Normal ---------------------
-
-      {
-        digitSwitchTime = DIGIT_DISPLAY_NEVER;
-        currNumberArray[i] = NumberArray[i];
-      }
-
-    // LEDs off will usually come before the digits off, or be the same 
-    ledsOffTime = digitOffCount * (float) separatorDimFactor / (float) 100;
-
-    // Main display loop - everything up to now was preparation
-    for (int timer = DIGIT_DISPLAY_START ; timer <= DIGIT_DISPLAY_COUNT ; timer++) {
-      if (timer == ledsOffTime) {
-        ledsOff();
-      }
-      
-      if (timer == digitOffTime) {
-        digitOff(i, NumberArray[i]);
-        doYield();
-      } else if (timer == digitOnTime) {
-        digitOn(i, currNumberArray[i]);
-        ledsOn();
-      } else if (timer == digitSwitchTime) {
-        digitOn(i, NumberArray[i]);
-      }
     }
   }
 }
 
-// ************************************************************
-// Set a digit with the given value, for a given digit
-// ************************************************************
-void digitOn(byte digit, byte value) {
-  byte dispValue = (decodeDigit[value] & 0xf) | (anodes[digit] & 0xf0);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
-}
 
 // ************************************************************
-// Turn the anodes off, but leave the cathode alone
+// Calculate the off time for this digit
+// fadeSteps: The number of iterations we should fade over
+// fadeState: the current step from 0 to fadeState-1
+// result: 1..offCount
 // ************************************************************
-void digitOff(byte digit, byte value) {
-  byte dispValue = (decodeDigit[value] & 0xf);
-  shiftOut(LATCHPin, DATA1Pin, CLOCKPin, MSBFIRST, dispValue);
-}
+byte getSwitchTime(byte offCount, byte fadeState, byte fadeSteps) {
+  float digitSwitchTimeFloat;
+  digitSwitchTimeFloat = (float) offCount * (float) (fadeSteps - fadeState) / (float) fadeSteps;
+  byte result = (byte) digitSwitchTimeFloat;
 
-// ************************************************************
-// Do some yields after every digit. The number determines
-// the responsiveness of the UI and the blink in the display.
-// ************************************************************
-#define YIELD_COUNT_PER_DIGIT 19
-void doYield() {
-  for (int i = 0 ; i < YIELD_COUNT_PER_DIGIT; i++)
-    yield();
+  // can't give back 0, because that means ("show new")
+  if (result == 0) result = 1;
+  // debugMsg("fadeState: " + String(fadeState) + ", result: " + result);
+  return result;
 }
 
 // ************************************************************
 // Turn the separator LEDs on
 // ************************************************************
-void ledsOn() {
+ICACHE_RAM_ATTR void ledsOn() {
   digitalWrite(LEDPin1, led1State);
   digitalWrite(LEDPin2, led2State);
 }
@@ -1786,33 +2044,9 @@ void ledsOn() {
 // ************************************************************
 // Turn the separator LEDs off
 // ************************************************************
-void ledsOff() {
+ICACHE_RAM_ATTR void ledsOff() {
   digitalWrite(LEDPin1, LOW);
   digitalWrite(LEDPin2, LOW);
-}
-
-// ************************************************************
-// Perform the shift out to the shift register
-// ************************************************************
-void shiftOut(uint8_t _loadPin,
-              uint8_t _dataPin1,
-              uint8_t _clockPin,
-              uint8_t _bitOrder,
-              uint8_t _val1) {
-  uint8_t i;
-
-  digitalWrite(_loadPin, LOW);
-  for (i = 0; i < 8; i++) {
-    if (_bitOrder == LSBFIRST) {
-      digitalWrite(_dataPin1, !!(_val1 & (1 << i)));
-    }
-    else {
-      digitalWrite(_dataPin1, !!(_val1 & (1 << (7 - i))));
-    }
-    digitalWrite(_clockPin, HIGH);
-    digitalWrite(_clockPin, LOW);
-  }
-  digitalWrite(_loadPin, HIGH);
 }
 
 // ************************************************************
@@ -1825,7 +2059,7 @@ void applyBlanking() {
   }
 
   // We only want to blank the hours tens digit
-  if (NumberArray[0] == 0) {
+  if (numberArray[0] == 0) {
     if (displayType[0] != BLANKED) {
       displayType[0] = BLANKED;
     }
@@ -1835,12 +2069,8 @@ void applyBlanking() {
 // ************************************************************
 // Display preset
 // ************************************************************
-void allFadeOrNormal(boolean blanking) {
-  if (fade) {
-    allFade();
-  } else {
-    allNormal();
-  }
+void allNormal(boolean blanking) {
+  allNormal();
 
   if (blanking) {
     applyBlanking();
@@ -1850,21 +2080,11 @@ void allFadeOrNormal(boolean blanking) {
 // ************************************************************
 // Display preset
 // ************************************************************
-void allFade() {
-  if (displayType[0] != FADE) displayType[0] = FADE;
-  if (displayType[1] != FADE) displayType[1] = FADE;
-  if (displayType[2] != FADE) displayType[2] = FADE;
-  if (displayType[3] != FADE) displayType[3] = FADE;
-}
-
-// ************************************************************
-// Display preset
-// ************************************************************
 void allBright() {
-  if (displayType[0] != BRIGHT) displayType[0] = BRIGHT;
-  if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
-  if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
-  if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
+  displayType[0] = BRIGHT;
+  displayType[1] = BRIGHT;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
@@ -1899,90 +2119,90 @@ void highlightDaysDateFormat() {
 // Display preset, highlight digits 0 and 1
 // ************************************************************
 void highlight0and1() {
-  if (displayType[0] != BRIGHT) displayType[0] = BRIGHT;
-  if (displayType[1] != BRIGHT) displayType[1] = BRIGHT;
-  if (displayType[2] != DIMMED) displayType[2] = DIMMED;
-  if (displayType[3] != DIMMED) displayType[3] = DIMMED;
+  displayType[0] = BRIGHT;
+  displayType[1] = BRIGHT;
+  displayType[2] = DIMMED;
+  displayType[3] = DIMMED;
 }
 
 // ************************************************************
 // Display preset, highlight digits 2 and 3
 // ************************************************************
 void highlight2and3() {
-  if (displayType[0] != DIMMED) displayType[0] = DIMMED;
-  if (displayType[1] != DIMMED) displayType[1] = DIMMED;
-  if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
-  if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
+  displayType[0] = DIMMED;
+  displayType[1] = DIMMED;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void allNormal() {
-  if (displayType[0] != NORMAL) displayType[0] = NORMAL;
-  if (displayType[1] != NORMAL) displayType[1] = NORMAL;
-  if (displayType[2] != NORMAL) displayType[2] = NORMAL;
-  if (displayType[3] != NORMAL) displayType[3] = NORMAL;
+  displayType[0] = NORMAL;
+  displayType[1] = NORMAL;
+  displayType[2] = NORMAL;
+  displayType[3] = NORMAL;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void displayConfig() {
-  if (displayType[0] != BLINK)  displayType[0] = BLINK;
-  if (displayType[1] != BLINK)  displayType[1] = BLINK;
-  if (displayType[2] != BRIGHT) displayType[2] = BRIGHT;
-  if (displayType[3] != BRIGHT) displayType[3] = BRIGHT;
+  displayType[0] = BLINK;
+  displayType[1] = BLINK;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void displayConfig3() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != NORMAL) displayType[1] = BRIGHT;
-  if (displayType[2] != NORMAL) displayType[2] = BRIGHT;
-  if (displayType[3] != NORMAL) displayType[3] = BRIGHT;
+  displayType[0] = BLANKED;
+  displayType[1] = BRIGHT;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void displayConfig2() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != BLANKED) displayType[1] = BLANKED;
-  if (displayType[2] != NORMAL) displayType[2] = BRIGHT;
-  if (displayType[3] != NORMAL) displayType[3] = BRIGHT;
+  displayType[0] = BLANKED;
+  displayType[1] = BLANKED;
+  displayType[2] = BRIGHT;
+  displayType[3] = BRIGHT;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void allBlanked() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != BLANKED) displayType[1] = BLANKED;
-  if (displayType[2] != BLANKED) displayType[2] = BLANKED;
-  if (displayType[3] != BLANKED) displayType[3] = BLANKED;
+  displayType[0] = BLANKED;
+  displayType[1] = BLANKED;
+  displayType[2] = BLANKED;
+  displayType[3] = BLANKED;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void confBlink() {
-  if (displayType[0] != BLINK) displayType[0] = BLINK;
-  if (displayType[1] != BLINK) displayType[1] = BLINK;
-  if (displayType[2] != BLINK) displayType[2] = BLINK;
-  if (displayType[3] != BLINK) displayType[3] = BLINK;
+  displayType[0] = BLINK;
+  displayType[1] = BLINK;
+  displayType[2] = BLINK;
+  displayType[3] = BLINK;
 }
 
 // ************************************************************
 // Display preset
 // ************************************************************
 void showDisplayIP() {
-  if (displayType[0] != BLANKED) displayType[0] = BLANKED;
-  if (displayType[1] != FADE) displayType[1] = FADE;
-  if (displayType[2] != FADE) displayType[2] = FADE;
-  if (displayType[3] != FADE) displayType[3] = FADE;
+  displayType[0] = BLANKED;
+  displayType[1] = NORMAL;
+  displayType[2] = NORMAL;
+  displayType[3] = NORMAL;
 }
 
 // ************************************************************
@@ -2184,24 +2404,35 @@ void setTubesAndLEDSBlankMode() {
         {
           blankTubes = true;
           blankLEDs = false;
+          blankSeparators = false;
           break;
         }
       case BLANK_MODE_LEDS:
         {
           blankTubes = false;
           blankLEDs = true;
+          blankSeparators = false;
           break;
         }
       case BLANK_MODE_BOTH:
         {
           blankTubes = true;
           blankLEDs = true;
+          blankSeparators = false;
+          break;
+        }
+      case BLANK_MODE_ALL:
+        {
+          blankTubes = true;
+          blankLEDs = true;
+          blankSeparators = true;
           break;
         }
     }
   } else {
     blankTubes = false;
     blankLEDs = false;
+    blankSeparators = false;
   }
 }
 
@@ -2227,11 +2458,10 @@ void randomRGBFlash(int delayVal) {
   delay(delayVal);
 }
 
-/**
-   Set the diagnostic LED colour:
-   stepNumber 0..5
-   state: 0 = red, 1 = orange, 2 = green, 3 = blue
-*/
+// ************************************************************
+// Set the diagnostic LED colour:
+// state: 0 = red, 1 = orange, 2 = green, 3 = blue
+// ************************************************************
 void setDiagnosticLED(byte stepNumber, byte state) {
   for (int i = 0 ; i < DIGIT_COUNT ; i++) {
     if (i > stepNumber) {
@@ -2278,6 +2508,16 @@ void setPIRPullup(boolean newState) {
 void setNewNextMode(int newNextMode) {
   nextMode = newNextMode;
   currentMode = newNextMode - 1;
+}
+
+// ************************************************************
+// Callback: When the NTP component tells us there is an update
+// go and get it
+// ************************************************************
+void newTimeUpdateReceived() {
+  debugMsg("Got a new time update");
+  setTimeFromServer(ntpAsync.getLastTimeFromServer());
+  setRTCTime();
 }
 
 //**********************************************************************************
@@ -2361,20 +2601,23 @@ void setRTCTime() {
 int getDimmingFromLDR() {
   if (useLDR) {
     int rawLDR = analogRead(LDRPin);
-    if (rawLDR < 100) rawLDR = 100;
-    if (rawLDR > 1000) rawLDR = 1000;
-    int rawSensorVal = 1100 - rawLDR;
+    int rawSensorVal = 1023 - rawLDR;
 
     double sensorDiff = rawSensorVal - sensorLDRSmoothed;
     sensorLDRSmoothed += (sensorDiff / (double)sensorSmoothCountLDR);
 
-    int returnValue = (sensorLDRSmoothed - dimDark) * sensorFactor;
+    // Scaling offset increases the base brightness
+    // factor increases the sensitivity
+    double offset = 20.0;
+    double factor = 120.0 / 5.0;
+
+    int returnValue = (sensorLDRSmoothed + offset) / factor;
 
     if (returnValue < minDim) returnValue = minDim;
-    if (returnValue > DIGIT_DISPLAY_OFF) returnValue = DIGIT_DISPLAY_OFF;
+    if (returnValue > ISR_STEPS) returnValue = ISR_STEPS;
     return returnValue;
   } else {
-    return DIGIT_DISPLAY_OFF;
+    return ISR_STEPS;
   }
 }
 
@@ -2407,14 +2650,17 @@ boolean getConfigFromSpiffs() {
         if (json.success()) {
           debugMsg("parsed json");
 
-          ntpPool = json["ntp_pool"].as<String>();
+          String ntpPool = json["ntp_pool"].as<String>();
           debugMsg("Loaded NTP pool: " + ntpPool);
+          ntpAsync.setNtpPool(ntpPool);
 
-          ntpUpdateInterval = json["ntp_update_interval"].as<unsigned long>();
+          int ntpUpdateInterval = json["ntp_update_interval"].as<int>();
           debugMsg("Loaded NTP update interval: " + String(ntpUpdateInterval));
+          ntpAsync.setUpdateInterval(ntpUpdateInterval);
 
-          tzs = json["time_zone_string"].as<String>();
+          String tzs = json["time_zone_string"].as<String>();
           debugMsg("Loaded time zone string: " + tzs);
+          ntpAsync.setTZS(tzs);
 
           hourMode = json["hourMode"].as<bool>();
           debugMsg("Loaded 12/24H mode: " + String(hourMode));
@@ -2433,6 +2679,9 @@ boolean getConfigFromSpiffs() {
 
           dateFormat = json["dateFormat"];
           debugMsg("Loaded date format: " + String(dateFormat));
+
+          dayBlanking = json["dayBlanking"];
+          debugMsg("Loaded dayBlanking: " + String(dayBlanking));
 
           dimDark = json["dimDark"];
           debugMsg("Loaded dimDark: " + String(dimDark));
@@ -2512,10 +2761,6 @@ boolean getConfigFromSpiffs() {
           backlightDimFactor = json["backlightDimFactor"];
           debugMsg("Loaded backlightDimFactor: " + String(backlightDimFactor));
 
-          boolean debug = json["debug"].as<bool>();
-          debugMsg("Loaded debug: " + String(debug));
-          setupDebug(debug);
-
           loaded = true;
         } else {
           debugMsg("failed to load json config");
@@ -2539,9 +2784,9 @@ void saveConfigToSpiffs() {
 
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
-    json["ntp_pool"] = ntpPool;
-    json["ntp_update_interval"] = ntpUpdateInterval;
-    json["time_zone_string"] = tzs;
+    json["ntp_pool"] = ntpAsync.getNtpPool();
+    json["ntp_update_interval"] = ntpAsync.getUpdateInterval();
+    json["time_zone_string"] = ntpAsync.getTZS();
     json["hourMode"] = hourMode;
     json["blankLeading"] = blankLeading;
     json["scrollback"] = scrollback;
@@ -2574,7 +2819,6 @@ void saveConfigToSpiffs() {
     json["webPassword"] = getWebPassword();
     json["separatorDimFactor"] = separatorDimFactor;
     json["backlightDimFactor"] = backlightDimFactor;
-    json["debug"] = getDebug();
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -2675,9 +2919,7 @@ void saveStatsToSpiffs() {
 // Reset configuration values back to what they once were
 // ************************************************************
 void factoryReset() {
-  ntpPool = NTP_POOL_DEFAULT;
-  ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
-  tzs = TIME_ZONE_STRING_DEFAULT;
+  ntpAsync.resetDefaults();
   hourMode = HOUR_MODE_DEFAULT;
   blankLeading = LEAD_BLANK_DEFAULT;
   scrollback = SCROLLBACK_DEFAULT;
@@ -2690,7 +2932,6 @@ void factoryReset() {
   dimBright = SENSOR_HIGH_DEFAULT;
   sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
   dateFormat = DATE_FORMAT_DEFAULT;
-  dayBlanking = DAY_BLANKING_DEFAULT;
   backlightMode = BACKLIGHT_DEFAULT;
   redCnl = COLOUR_RED_CNL_DEFAULT;
   grnCnl = COLOUR_GRN_CNL_DEFAULT;
@@ -2710,18 +2951,11 @@ void factoryReset() {
   setWebAuthentication(WEB_AUTH_DEFAULT);
   setWebUserName(WEB_USERNAME_DEFAULT);
   setWebPassword(WEB_PASSWORD_DEFAULT);
-  separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
+  separatorDimFactor = SEP_DIM_DEFAULT;
   backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
-  setupDebug(DEBUG_DEFAULT);
 
   saveConfigToSpiffs();
 }
-
-//**********************************************************************************
-//**********************************************************************************
-//*                                Page Handlers                                   *
-//**********************************************************************************
-//**********************************************************************************
 
 void saveToSpiffsIfChanged(boolean changed) {
   if (changed) {
@@ -2732,6 +2966,12 @@ void saveToSpiffsIfChanged(boolean changed) {
     saveStatsToSpiffs();
   }
 }
+
+//**********************************************************************************
+//**********************************************************************************
+//*                                Page Handlers                                   *
+//**********************************************************************************
+//**********************************************************************************
 
 // ************************************************************
 // Summary page
@@ -2751,9 +2991,10 @@ void rootPageHandler() {
     response_message += getTableRow2Col("WLAN IP", formatIPAsString(ip));
     response_message += getTableRow2Col("WLAN MAC", WiFi.macAddress());
     response_message += getTableRow2Col("WLAN SSID", WiFi.SSID());
-    response_message += getTableRow2Col("NTP Pool", ntpPool);
-    response_message += getTableRow2Col("TZ", getenv("TZ"));
-    response_message += getTableRow2Col("Last NTP time", lastTimeFromServer);
+    response_message += getTableRow2Col("NTP Pool", ntpAsync.getNtpPool());
+    response_message += getTableRow2Col("TZ", ntpAsync.getTZS());
+    response_message += getTableRow2Col("Last NTP time", ntpAsync.getLastTimeFromServer());
+    response_message += getTableRow2Col("Clock Name", WiFi.hostname());
   }
   else
   {
@@ -2765,16 +3006,14 @@ void rootPageHandler() {
 
   response_message += getTableRow2Col("Uptime", secsToReadableString(millis() / 1000));
 
-  long lastUpdateTimeSecs = (nowMillis - lastUpdateFromServer) / 1000;
+  long lastUpdateTimeSecs = ntpAsync.getLastUpdateTimeSecs(millis());
   response_message += getTableRow2Col("Last time update", secsToReadableString(lastUpdateTimeSecs) + " ago");
 
-  signed long absNextUpdate = abs(nextUpdateFromServer);
+  signed long absNextUpdate = abs(ntpAsync.getNextUpdate(millis()));
   String overdueInd = "";
-  if (nextUpdateFromServer < 0) {
+  if (absNextUpdate < 0) {
     overdueInd = " overdue";
-    absNextUpdate = -nextUpdateFromServer;
-  } else {
-    absNextUpdate = nextUpdateFromServer;
+    absNextUpdate = -absNextUpdate;
   }
   response_message += getTableRow2Col("Time before next update", secsToReadableString(absNextUpdate) + overdueInd);
 
@@ -2794,12 +3033,12 @@ void rootPageHandler() {
   response_message += getTableFoot();
 
   // ******************** Clock Info table ***************************
-  float digitBrightness = digitOffCount * 100.0 / (float) DIGIT_DISPLAY_OFF;
+  float digitBrightness = digitOffCount * 100.0 / (float) ISR_STEPS;
   String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
   String rtcState = useRTC ? "Installed" : "Not installed";
   String timeSource;
 
-  if (ntpTimeValid()) {
+  if (ntpAsync.ntpTimeValid(nowMillis)) {
     timeSource = "NTP";
   } else if (useRTC) {
     timeSource = "RTC";
@@ -2808,7 +3047,13 @@ void rootPageHandler() {
   }
   String currentTime = String(year()) + ":" + String(month()) + ":" + String(day()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
   response_message += getTableHead2Col("Clock information", "Name", "Value");
-  response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
+
+  if (useLDR) {
+    response_message += getTableRow2Col("LDR Value", sensorLDRSmoothed);
+  } else {
+    response_message += getTableRow2Col("LDR Value", "LDR disabled");
+  }
+
   response_message += getTableRow2Col("Digit brightness %", String(digitBrightness, 2));
   response_message += getTableRow2Col("Motion Sensor", motionSensorState);
   response_message += getTableRow2Col("Time Source", timeSource);
@@ -2851,16 +3096,20 @@ void timeServerPageHandler() {
   debugMsg("Time page in");
 
   boolean changed = false;
-
+  String ntpPool = ntpAsync.getNtpPool();
+  String tzs = ntpAsync.getTZS();
+  int ntpUpdateInterval = ntpAsync.getUpdateInterval();
+  
   checkServerArgString("ntppool", "NTP Pool", changed, ntpPool);
   checkServerArgInt("ntpupdate", "NTP update interval", changed, ntpUpdateInterval);
   checkServerArgString("tzs", "Time Zone String", changed, tzs);
-  if (String(getenv("TZ")) != tzs) {
-    debugMsg("Setting TZ ENV: " + tzs);
-    setenv("TZ", tzs.c_str(), 1);
+  if (changed) {
+    ntpAsync.setTZS(tzs);
+    ntpAsync.setNtpPool(ntpPool);
+    ntpAsync.setUpdateInterval(ntpUpdateInterval);
   }
   saveToSpiffsIfChanged(changed);
-  
+
   // -----------------------------------------------------------------------------
 
   String response_message = getHTMLHead(getIsConnected());
@@ -2869,9 +3118,10 @@ void timeServerPageHandler() {
   // form header
   response_message += getFormHead("Select time server");
 
-  response_message += getTextInputWide("NTP Pool", "ntppool", ntpPool, false);
-  response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpUpdateInterval, false);
-  response_message += getTextInputWide("Time Zone String", "tzs", tzs, false);
+  debugMsg("ntpPool is: " + ntpAsync.getNtpPool());
+  response_message += getTextInputWide("NTP Pool", "ntppool", ntpAsync.getNtpPool(), false);
+  response_message += getNumberInput("Update interval:", "ntpupdate", NTP_UPDATE_INTERVAL_MIN, NTP_UPDATE_INTERVAL_MAX, ntpAsync.getUpdateInterval(), false);
+  response_message += getTextInputWide("Time Zone String", "tzs", ntpAsync.getTZS(), false);
 
   response_message += getSubmitButton("Set");
 
@@ -2960,8 +3210,8 @@ void clockConfigPageHandler() {
   String response_message = getHTMLHead(getIsConnected());
   response_message += getNavBar();
 
-  // form header
-  response_message += getFormHead("Set Configuration");
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("General options");
 
   // 12/24 mode
   response_message += getRadioGroupHeader("12H/24H mode:");
@@ -2984,6 +3234,18 @@ void clockConfigPageHandler() {
     response_message += getRadioButton("blankLeading", "Show", "show", true);
   }
   response_message += getRadioGroupFooter();
+
+  // Date format
+  response_message += getDropDownHeader("Date format:", "dateFormat", false, false);
+  response_message += getDropDownOption("0", "MM-DD", (dateFormat == 0));
+  response_message += getDropDownOption("1", "DD-MM", (dateFormat == 1));
+  response_message += getDropDownFooter();
+
+  // Slots Mode
+  response_message += getDropDownHeader("Date Slots:", "slotsMode", true, false);
+  response_message += getDropDownOption("0", "Don't use slots mode", (slotsMode == 0));
+  response_message += getDropDownOption("1", "Scroll In, Scramble Out", (slotsMode == 1));
+  response_message += getDropDownFooter();
 
   // Scrollback
   response_message += getRadioGroupHeader("Scrollback effect:");
@@ -3013,6 +3275,13 @@ void clockConfigPageHandler() {
   // Fade steps
   response_message += getNumberInput("Fade steps:", "fadeSteps", FADE_STEPS_MIN, FADE_STEPS_MAX, fadeSteps, !fade);
 
+  response_message += getSubmitButton("Set");
+
+  response_message += getFormFoot();
+
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Light Dependent Resistor");
+
   // LDR
   response_message += getRadioGroupHeader("Use LDR:");
   if (useLDR) {
@@ -3024,14 +3293,38 @@ void clockConfigPageHandler() {
   }
   response_message += getRadioGroupFooter();
 
-  // Date format
-  response_message += getDropDownHeader("Date format:", "dateFormat", false);
-  response_message += getDropDownOption("0", "MM-DD", (dateFormat == 0));
-  response_message += getDropDownOption("1", "DD-MM", (dateFormat == 1));
-  response_message += getDropDownFooter();
+  // Min dim
+  response_message += getNumberInput("Min Dim:", "minDim", MIN_DIM_MIN, MIN_DIM_MAX, minDim, false);
+
+  response_message += getSubmitButton("Set");
+
+  response_message += getFormFoot();
+
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Digit blanking");
+  
+  if (pirInstalled) {
+    response_message += getExplanationText("Motion detector installed - time based blanking is disabled");
+  } else {
+    response_message += getExplanationText("Motion detector not installed - motion detector blanking is inactive");
+  }
+  
+  // PIR timeout
+  response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);
+
+  // PIR pullup
+  response_message += getRadioGroupHeader("Use PIR pullup:");
+  if (usePIRPullup) {
+    response_message += getRadioButton("usePIRPullup", "On", "on", true);
+    response_message += getRadioButton("usePIRPullup", "Off", "off", false);
+  } else {
+    response_message += getRadioButton("usePIRPullup", "On", "on", false);
+    response_message += getRadioButton("usePIRPullup", "Off", "off", true);
+  }
+  response_message += getRadioGroupFooter();
 
   // Day blanking
-  response_message += getDropDownHeader("Day blanking:", "dayBlanking", true);
+  response_message += getDropDownHeader("Day blanking:", "dayBlanking", true, false);
   response_message += getDropDownOption("0", "Never blank", (dayBlanking == 0));
   response_message += getDropDownOption("1", "Blank all day on weekends", (dayBlanking == 1));
   response_message += getDropDownOption("2", "Blank all day on week days", (dayBlanking == 2));
@@ -3044,10 +3337,11 @@ void clockConfigPageHandler() {
   response_message += getDropDownFooter();
 
   // Blank Mode
-  response_message += getDropDownHeader("Blank Mode:", "blankMode", true);
+  response_message += getDropDownHeader("Blank Mode:", "blankMode", true, false);
   response_message += getDropDownOption("0", "Blank tubes only", (blankMode == 0));
   response_message += getDropDownOption("1", "Blank LEDs only", (blankMode == 1));
   response_message += getDropDownOption("2", "Blank tubes and LEDs", (blankMode == 2));
+  response_message += getDropDownOption("3", "Blank everything", (blankMode == 3));
   response_message += getDropDownFooter();
 
   boolean hoursDisabled = (dayBlanking < 4);
@@ -3058,8 +3352,15 @@ void clockConfigPageHandler() {
   // Blank hours to
   response_message += getNumberInput("Blank to:", "blankHourEnd", 0, 23, blankHourEnd, hoursDisabled);
 
+  response_message += getSubmitButton("Set");
+
+  response_message += getFormFoot();
+
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Back/Underlights");
+
   // Back light
-  response_message += getDropDownHeader("Back light:", "backlightMode", true);
+  response_message += getDropDownHeader("Back light:", "backlightMode", true, false);
   response_message += getDropDownOption("0", "Fixed RGB backlight, no dimming", (backlightMode == 0));
   response_message += getDropDownOption("1", "Pulsing RGB backlight, no dimming", (backlightMode == 1));
   response_message += getDropDownOption("2", "Cycling RGB backlight, no dimming", (backlightMode == 2));
@@ -3085,39 +3386,32 @@ void clockConfigPageHandler() {
   // Cycle speed
   response_message += getNumberInput("Backlight Cycle Speed:", "cycleSpeed", CYCLE_SPEED_MIN, CYCLE_SPEED_MAX, cycleSpeed, !activeCycle);
 
-  // Slots Mode
-  response_message += getDropDownHeader("Date Slots:", "slotsMode", true);
-  response_message += getDropDownOption("0", "Don't use slots mode", (slotsMode == 0));
-  response_message += getDropDownOption("1", "Scroll In, Scramble Out", (slotsMode == 1));
-  response_message += getDropDownFooter();
-
   // LED mode
-  response_message += getDropDownHeader("LED Mode:", "ledMode", true);
+  response_message += getDropDownHeader("LED Mode:", "ledMode", true, false);
   response_message += getDropDownOption("0", "RailRoad", (ledMode == LED_RAILROAD));
   response_message += getDropDownOption("1", "Slow flash", (ledMode == LED_BLINK_SLOW));
   response_message += getDropDownOption("2", "Fast flash", (ledMode == LED_BLINK_FAST));
   response_message += getDropDownOption("3", "Double flash", (ledMode == LED_BLINK_DBL));
+  response_message += getDropDownOption("4", "Always On", (ledMode == LED_ON));
+  response_message += getDropDownOption("5", "Always Off", (ledMode == LED_OFF));
+  response_message += getDropDownOption("6", "AM/PM", (ledMode == LED_AM_PM));
   response_message += getDropDownFooter();
 
   // Separator dim factor
-  response_message += getNumberInput("Separator Dim:", "separatorDimFactor", SEPARATOR_DIM_FACTOR_MIN, SEPARATOR_DIM_FACTOR_MAX, separatorDimFactor, false);
+  response_message += getDropDownHeader("Separator Dim:", "separatorDimFactor", false, false);
+  response_message += getDropDownOption("0", "Off", (separatorDimFactor == SEP_OFF));
+  response_message += getDropDownOption("1", "Dim", (separatorDimFactor == SEP_DIM));
+  response_message += getDropDownOption("2", "Medium", (separatorDimFactor == SEP_MED));
+  response_message += getDropDownOption("3", "Bright", (separatorDimFactor == SEP_BRIGHT));
+  response_message += getDropDownOption("4", "Full", (separatorDimFactor == SEP_FULL));
+  response_message += getDropDownFooter();
 
-  // PIR timeout
-  response_message += getNumberInput("PIR timeout:", "pirTimeout", PIR_TIMEOUT_MIN, PIR_TIMEOUT_MAX, pirTimeout, false);
+  response_message += getSubmitButton("Set");
 
-  // PIR pullup
-  response_message += getRadioGroupHeader("Use PIR pullup:");
-  if (usePIRPullup) {
-    response_message += getRadioButton("usePIRPullup", "On", "on", true);
-    response_message += getRadioButton("usePIRPullup", "Off", "off", false);
-  } else {
-    response_message += getRadioButton("usePIRPullup", "On", "on", false);
-    response_message += getRadioButton("usePIRPullup", "Off", "off", true);
-  }
-  response_message += getRadioGroupFooter();
+  response_message += getFormFoot();
 
-  // Min dim
-  response_message += getNumberInput("Min Dim:", "minDim", MIN_DIM_MIN, MIN_DIM_MAX, minDim, false);
+  // -----------------------------------------------------------------------------
+  response_message += getFormHead("Security");
 
   // web auth mode
   response_message += getRadioGroupHeader("Web Authentication:");
@@ -3150,7 +3444,6 @@ void clockConfigPageHandler() {
 // Send a value to the clock for display
 // ************************************************************
 void setDisplayValuePageHandler() {
-  String resultMessage;
   byte timeValue = 0xff;
   boolean valueValid = false;
   boolean timeValid = false;
@@ -3165,16 +3458,16 @@ void setDisplayValuePageHandler() {
   checkServerArgInt("format", "format", formatValid, valueFormat);
 
   if (valueValid) {
-    byte val1 = hex2bcd(valueTime % 100);
-    valueTime = valueTime / 100;
-    byte val0 = hex2bcd(valueTime % 100);
-    valueToShow[0] = val0;
-    valueToShow[1] = val1;
+    valueToShow = valueToDisplay % 10000;
+    valueDisplayTime = 10;
   }
   
   if (timeValid) {
     if (valueTime > 255)
       valueTime = 255;
+    valueDisplayTime = valueTime;
+  } else {
+    valueDisplayTime = 10;
   }
 
   if (formatValid) {
@@ -3192,11 +3485,11 @@ void setDisplayValuePageHandler() {
 
   if (valueValid) {
     response_message += "<div class=\"alert alert-success fade in\"><strong>";
-    response_message += resultMessage;
+    response_message += "display value was set!";
     response_message += "</strong></div></div>";
   } else {
     response_message += "<div class=\"alert alert-error fade in\"><strong>";
-    response_message += "You need to set at least the \"Time\" parameter! A valid command line is http://<clock.ip.addres>/setvalue?value=123456&time=60&format=333333";
+    response_message += "You need to set at least the \"value\" parameter! A valid command line is http://clock.ip.address/setvalue?value=1234&time=60&format=3333";
     response_message += "</strong></div></div>";
   }
 
@@ -3251,7 +3544,7 @@ void resetWiFiPageHandler() {
 void ntpUpdatePageHandler() {
   debugMsg("NTP Update page in");
 
-  getTimeFromTimeZoneServer();
+  ntpAsync.getTimeFromNTP();
 
   server.sendHeader("Location", "/utility", true);
   server.send(302, "text/plain", "");
@@ -3271,20 +3564,6 @@ void factoryResetPageHandler() {
   server.send(302, "text/plain", "");
 
   debugMsg("Factory Reset page out");
-}
-
-// ************************************************************
-// Reset just the wifi
-// ************************************************************
-void debugPageHandler() {
-  debugMsg("Debug page in");
-
-  toggleDebug();
-  
-  server.sendHeader("Location", "/utility", true);
-  server.send(302, "text/plain", "");
-
-  debugMsg("Debug page out");
 }
 
 // ************************************************************
@@ -3326,115 +3605,6 @@ void localCSSHandler()
 // ----------------------------------------------------------------------------------------------------
 
 // ************************************************************
-// Asynchronous NTP query
-// ************************************************************
-void getTimeFromTimeZoneServer() {
-  debugMsg("Async NTP in");
-
-  if (WiFi.status() != WL_CONNECTED) {
-    debugMsg("WiFi not connected. Abort.");
-    return;
-  }
-
-  IPAddress serverIP;
-  WiFi.hostByName(ntpPool.c_str(), serverIP);
-  String str = "NTP IPAddr: ";
-  str += serverIP.toString();
-  debugMsg(str);
-
-  byte buffer[NTP_PACKET_SIZE];
-  memset(buffer, 0, NTP_PACKET_SIZE);
-  buffer[0] = 0b11100011;   // LI, Version, Mode
-  buffer[1] = 0;            // Stratum, or type of clock
-  buffer[2] = 9;            // Polling Interval (9 = 2^9 secs = ~9 mins, close to our 10 min default)
-  buffer[3] = 0xEC;         // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
-  buffer[12]  = 'X';        // "kiss code", see RFC5905
-  buffer[13]  = 'W';        // (codes starting with 'X' are not interpreted)
-  buffer[14]  = 'N';
-  buffer[15]  = 'C';
-
-  ntpStarted = millis();
-  udp.connect(serverIP, 123); //NTP requests are to port 123
-  udp.write(buffer, NTP_PACKET_SIZE);
-  udp.onPacket(onPacketReceived_cb);
-
-  debugMsg("Async GET Time out");
-}
-
-// ************************************************************
-// Asynchronous NTP callback for handling responses
-// ************************************************************
-void onPacketReceived_cb(AsyncUDPPacket packet) {
-  debugMsgCont("UDP Packet Type: ");
-  debugMsg(packet.isBroadcast() ? "Broadcast" : packet.isMulticast() ? "Multicast" : "Unicast");
-  debugMsgCont("From: ");
-  debugMsgCont(formatIPAsString(packet.remoteIP()));
-  debugMsgCont(":");
-  debugMsg(String(packet.remotePort()));
-  debugMsgCont("To: ");
-  debugMsgCont(formatIPAsString(packet.localIP()));
-  debugMsgCont(":");
-  debugMsg(String(packet.localPort()));
-  debugMsgCont("Length: ");
-  debugMsg(String(packet.length()));
-
-  if (packet.length() != 48) {
-    debugMsg("Received data, but got invalid length: " + String(packet.length()));
-  } else {
-    uint8_t buffer[NTP_PACKET_SIZE];
-    memcpy(&buffer, packet.data(), packet.length());
-    //prepare timestamps
-    uint32_t highWord, lowWord;
-    highWord = ( buffer[16] << 8 | buffer[17] ) & 0x0000FFFF;
-    lowWord = ( buffer[18] << 8 | buffer[19] ) & 0x0000FFFF;
-    uint32_t reftsSec = highWord << 16 | lowWord;       // reference timestamp seconds
-
-    highWord = ( buffer[32] << 8 | buffer[33] ) & 0x0000FFFF;
-    lowWord = ( buffer[34] << 8 | buffer[35] ) & 0x0000FFFF;
-    uint32_t rcvtsSec = highWord << 16 | lowWord;       // receive timestamp seconds
-
-    highWord = ( buffer[40] << 8 | buffer[41] ) & 0x0000FFFF;
-    lowWord = ( buffer[42] << 8 | buffer[43] ) & 0x0000FFFF;
-    uint32_t secsSince1900 = highWord << 16 | lowWord;      // transmit timestamp seconds
-
-    highWord = ( buffer[44] << 8 | buffer[45] ) & 0x0000FFFF;
-    lowWord = ( buffer[46] << 8 | buffer[47] ) & 0x0000FFFF;
-    uint32_t fraction = highWord << 16 | lowWord;       // transmit timestamp fractions
-
-    //check if received data makes sense
-    //buffer[1] = stratum - should be 1..15 for valid reply
-    //also checking that all timestamps are non-zero and receive timestamp seconds are <= transmit timestamp seconds
-    if ((buffer[1] < 1) or (buffer[1] > 15) or (reftsSec == 0) or (rcvtsSec == 0) or (rcvtsSec > secsSince1900)) {
-      // we got invalid packet
-      debugMsg("Got data, but got INVALID_DATA");
-      return;
-    }
-
-    // Set the t and measured_at variables that were passed by reference
-    uint32_t done = millis();
-    debugMsg("success round trip " + String(done - ntpStarted) + " ms");
-    unsigned long t = secsSince1900 - 2208988800UL;                     // Subtract 70 years to get seconds since 1970
-
-//    uint16_t ms = fraction / 4294967UL;                                 // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
-//    unsigned long measured_at = done - ((done - ntpStarted) / 2) - ms;  // Assume symmetric network latency and return when we think the whole second was.
-
-    lastUpdateFromServer = done;
-    nextUpdateFromServer = ntpUpdateInterval;
-    debugMsg("Set next update: " + String(nextUpdateFromServer));
-
-    time_t ntpTime = t;
-    const tm* tm = localtime(&ntpTime);
-
-    String timeString = String(tm->tm_year + 1900) + "," + String(tm->tm_mon + 1) + "," + String(tm->tm_mday) + "," + String(tm->tm_hour) + "," + String(tm->tm_min) + "," + String(tm->tm_sec);
-    debugMsg("NTP Update time str: " + timeString);
-    lastTimeFromServer = timeString;
-    setTimeFromServer(lastTimeFromServer);
-    setRTCTime();
-  }
-}
-
-// ************************************************************
 // What it says on the tin
 // ************************************************************
 boolean getIsConnected() {
@@ -3461,13 +3631,6 @@ void reconnectDroppedConnection() {
     ETS_UART_INTR_ENABLE();
     WiFi.begin();
   }
-}
-
-// ************************************************************
-// see if the NTP time is still to be considered valid
-// ************************************************************
-boolean ntpTimeValid() {
-  return lastUpdateFromServer != 0 && ((nowMillis - lastUpdateFromServer) < (2000 * ntpUpdateInterval));
 }
 
 // ************************************************************
@@ -3518,25 +3681,13 @@ void setServerPageHandlers() {
     return clockConfigPageHandler();
   });
 
-  server.on("/setvalue", []() {
-    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
-      return server.requestAuthentication();
-    }
-    return setDisplayValuePageHandler();
-  });
+  server.on("/setvalue", setDisplayValuePageHandler);
 
   server.on("/utility", []() {
     if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
       return server.requestAuthentication();
     }
     return utilityPageHandler();
-  });
-
-  server.on("/debug", []() {
-    if (getWebAuthentication() && (!server.authenticate(getWebUserName().c_str(), getWebPassword().c_str()))) {
-      return server.requestAuthentication();
-    }
-    return debugPageHandler();
   });
 
   server.on("/local.css",   localCSSHandler);

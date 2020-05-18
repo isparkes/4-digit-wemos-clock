@@ -10,7 +10,6 @@
 
 // ----------------------- Components ----------------------------
 
-AsyncUDP udp;                           // ESPAsyncUDP.h
 Transition transition(500, 1000, 3000); // Scroll/Scramble (Transition.h)  
 DS1307 Clock;                           // RTC, uses Analogue pins A4 (SDA) and A5 (SCL)
 NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> leds(DIGIT_COUNT, LED_DOUT);
@@ -18,30 +17,20 @@ ClockButton button1(inputPin1, true);   // Clock button debounce and handling
 
 // ------------------------ NTP ------------------------
 
-#define NTP_POOL_DEFAULT "pool.ntp.org"
-#define NTP_PACKET_SIZE 48
 #define TIME_ZONE_STRING_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3"
-#define NTP_UPDATE_INTERVAL_DEFAULT 7261
-#define NTP_UPDATE_INTERVAL_MIN 60
-#define NTP_UPDATE_INTERVAL_MAX 86400
-
-String ntpPool = NTP_POOL_DEFAULT;
-String tzs = TIME_ZONE_STRING_DEFAULT;
-unsigned long lastUpdateFromServer = 0;
-signed long nextUpdateFromServer = 0;
-String lastTimeFromServer = "";
-int ntpUpdateInterval = NTP_UPDATE_INTERVAL_DEFAULT;
-unsigned long ntpStarted = 0;
 
 // ------------------ Display Variables ----------------
 
-byte NumberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
+#define ISR_STEPS   20
+
+byte numberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte currNumberArray[DIGIT_COUNT]      = {0, 0, 0, 0};
-byte displayType[DIGIT_COUNT]          = {FADE, FADE, FADE, FADE};
+byte displayType[DIGIT_COUNT]          = {NORMAL, NORMAL, NORMAL, NORMAL};
 byte fadeState[DIGIT_COUNT]            = {0, 0, 0, 0};
 byte valueDisplayTime                  = 0;
-byte valueToShow[DIGIT_COUNT / 2]      = {0, 0};
-byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL >> 4, NORMAL | NORMAL >> 4}; // All normal by default
+int valueToShow                        = 0;
+byte valueDisplayType[DIGIT_COUNT / 2] = {NORMAL | NORMAL << 4, NORMAL | NORMAL << 4}; // All normal by default
+byte ledsOffTime;
 
 // ------------------- Config Variables ----------------
 
@@ -50,15 +39,13 @@ int minDim = MIN_DIM_DEFAULT;
 
 // how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
 // 350 is about 1 second
-int fadeSteps = FADE_STEPS_DEFAULT;
-
-int digitOffCount = DIGIT_DISPLAY_OFF;
+int fadeSteps = ISR_STEPS;
+int digitOffCount = ISR_STEPS;
 int scrollSteps = SCROLL_STEPS_DEFAULT;
 boolean scrollback = true;
 boolean fade = true;
 byte antiGhost = ANTI_GHOST_DEFAULT;
-int dispCount = DIGIT_DISPLAY_COUNT + antiGhost;
-float fadeStep = DIGIT_DISPLAY_COUNT / fadeSteps;
+float fadeStep = ISR_STEPS / fadeSteps;
 byte dayBlanking = DAY_BLANKING_DEFAULT;
 byte blankHourStart = 0;
 byte blankHourEnd = 0;
@@ -77,8 +64,15 @@ int pirTimeout = PIR_TIMEOUT_DEFAULT;
 boolean blankLeading = false;
 byte dateFormat = DATE_FORMAT_DEFAULT;
 byte ledMode = 0;       // Separator LED mode
-byte separatorDimFactor = SEPARATOR_DIM_FACTOR_DEFAULT;
+byte separatorDimFactor = SEP_DIM_DEFAULT;
 byte backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
+
+// Cache values for display smoothness
+byte disp_hour;
+byte disp_min;
+byte disp_sec;
+byte disp_day;
+byte disp_month;
 
 // ------------- Time management variables -------------
 
@@ -125,13 +119,13 @@ unsigned long blankSuppressedMillis = 0;   // The end time of the blanking, 0 if
 unsigned long blankSuppressedSelectionTimoutMillis = 0;   // Used for determining the end of the blanking period selection timeout
 boolean blankTubes = false;
 boolean blankLEDs = false;
+boolean blankSeparators = false;
 
 // --------------- Ambient light dimming ---------------
 
 int dimDark = SENSOR_LOW_DEFAULT;
 int dimBright = SENSOR_HIGH_DEFAULT;
 double sensorLDRSmoothed = 0;
-double sensorFactor = (double)(DIGIT_DISPLAY_OFF) / (double)(dimBright - dimDark);
 int sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
 
 boolean blinkState;
@@ -143,6 +137,7 @@ boolean upOrDown;
 // Used to control the separator LEDs
 boolean led1State;
 boolean led2State;
+boolean ampm = false;
 
 // Strategy 3
 int changeSteps = 0;
