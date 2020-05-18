@@ -54,7 +54,9 @@
 NtpAsync ntpAsync;
 
 //**********************************************************************************
+//**********************************************************************************
 //*                               ISR Display Multiplex                            *
+//**********************************************************************************
 //**********************************************************************************
 #define INT_MUX_COUNTS         800
 #define COUNTS_PER_DIGIT       20
@@ -127,7 +129,7 @@ ICACHE_RAM_ATTR void shiftOut(uint8_t _loadPin,
 // ************************************************************
 ICACHE_RAM_ATTR void displayUpdate() {
   byte phT = ptCache[phaseStep];
-  
+
   unsigned int nextIntTime = phT & 0x3f;
   byte nextPhase = phT >> 6;
 
@@ -154,7 +156,7 @@ ICACHE_RAM_ATTR void displayUpdate() {
 
   phaseStep = nextPhase;
   if (phaseStep == 0) {
-    
+
     digitStep++;
     if (digitStep > 3) {
       digitStep = 0;
@@ -194,11 +196,11 @@ void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switc
   if (dimFactor < 1) {
     dimFactor = 1; 
   }
-  
+
   if (dimFactor > COUNTS_PER_DIGIT) {
     dimFactor = COUNTS_PER_DIGIT;
   }
-  
+
   if (switchTime >= dimFactor) {
     switchTime = dimFactor - 1;
     if (switchTime < 1) {
@@ -216,7 +218,7 @@ void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switc
     // blank in Ph0
     phaseTime[0][digit] = COUNTS_PER_DIGIT | BLNK_DIGIT;
     phaseTime[1][digit] = 0;
-    phaseTime[2][digit] = 0;      
+    phaseTime[2][digit] = 0;
   } else {
     // Undimmed
     if (dimFactor == COUNTS_PER_DIGIT) {
@@ -224,12 +226,12 @@ void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switc
         // simplest case, full brightness no switch, we just deal with Ph0
         phaseTime[0][digit] = COUNTS_PER_DIGIT | NEXT_DIGIT;
         phaseTime[1][digit] = 0;
-        phaseTime[2][digit] = 0;      
+        phaseTime[2][digit] = 0;
       } else {
         // doing a switch at full brightness, use Ph0 and Ph1
         phaseTime[0][digit] = switchTime | SWCH_DIGIT;
         phaseTime[1][digit] = (COUNTS_PER_DIGIT - switchTime) | NEXT_DIGIT;
-        phaseTime[2][digit] = 0;      
+        phaseTime[2][digit] = 0;
       }
     } else {
       // Dimmed
@@ -244,7 +246,7 @@ void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switc
         phaseTime[1][digit] = (dimFactor - switchTime) | OFF__DIGIT;
         phaseTime[2][digit] = (COUNTS_PER_DIGIT - dimFactor) | NEXT_DIGIT;      
       }
-    }    
+    }
   }
 }
 
@@ -293,15 +295,15 @@ void setup()
     TIM_SINGLE  0 //on interrupt routine you need to write a new value to start the timer again
     TIM_LOOP  1 //on interrupt the counter will start with the same value again
   */
-  
+
   timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
-  
+
   loadNumberArrayPOSTMessage(postStep++);
-  
+
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
-  
+
   loadNumberArrayPOSTMessage(postStep++);
 
   setPinModes();
@@ -325,7 +327,7 @@ void setup()
   }
 
   loadNumberArrayPOSTMessage(postStep++);
-  
+
   debugMsg("Getting SPIFFS");
   if (!getConfigFromSpiffs()) {
     debugMsg("No config found - resetting everything");
@@ -429,8 +431,6 @@ void setup()
     setDiagnosticLED(DIAGS_WIFI, STATUS_RED);
   }
 
-  // loadNumberArrayPOSTMessage(postStep++);
-  
   IPAddress apIP = WiFi.softAPIP();
   IPAddress myIP = WiFi.localIP();
   debugMsg("AP IP address: " + formatIPAsString(apIP));
@@ -616,7 +616,7 @@ void loop()
   }
 
   delay(10);
-  
+
   outputDisplay();
 }
 
@@ -1967,12 +1967,8 @@ void outputDisplay() {
         // Continue the fade
         fadeState[i] = fadeState[i] - 1;
       }
-    } else
-    
-    {
-      
     }
-    
+
     switch (tmpDispType) {
       case BLANKED:
         {
@@ -2614,7 +2610,7 @@ int getDimmingFromLDR() {
     // factor increases the sensitivity
     double offset = 20.0;
     double factor = 120.0 / 5.0;
-    
+
     int returnValue = (sensorLDRSmoothed + offset) / factor;
 
     if (returnValue < minDim) returnValue = minDim;
