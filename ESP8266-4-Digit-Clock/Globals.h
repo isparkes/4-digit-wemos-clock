@@ -34,45 +34,9 @@ byte ledsOffTime;
 
 // ------------------- Config Variables ----------------
 
-boolean hourMode = false;     // 24H
-int minDim = MIN_DIM_DEFAULT;
+float fadeStep = ISR_STEPS / FADE_STEPS_DEFAULT;
 
-// how many fade steps to increment (out of DIGIT_DISPLAY_COUNT) each impression
-// 350 is about 1 second
-int fadeSteps = ISR_STEPS;
-int digitOffCount = ISR_STEPS;
-int scrollSteps = SCROLL_STEPS_DEFAULT;
-boolean scrollback = true;
-boolean fade = true;
-byte antiGhost = ANTI_GHOST_DEFAULT;
-float fadeStep = ISR_STEPS / fadeSteps;
-byte dayBlanking = DAY_BLANKING_DEFAULT;
-byte blankHourStart = 0;
-byte blankHourEnd = 0;
-byte blankMode = 0;
-boolean useLDR = true;
-boolean usePIRPullup = true;
-byte backlightMode = BACKLIGHT_DEFAULT;
-byte redCnl = COLOUR_RED_CNL_DEFAULT;
-byte grnCnl = COLOUR_GRN_CNL_DEFAULT;
-byte bluCnl = COLOUR_BLU_CNL_DEFAULT;
 byte cycleCount = 0;
-byte cycleSpeed = CYCLE_SPEED_DEFAULT;
-boolean testMode = false;
-byte slotsMode = SLOTS_MODE_DEFAULT;
-int pirTimeout = PIR_TIMEOUT_DEFAULT;
-boolean blankLeading = false;
-byte dateFormat = DATE_FORMAT_DEFAULT;
-byte ledMode = 0;       // Separator LED mode
-byte separatorDimFactor = SEP_DIM_DEFAULT;
-byte backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
-
-// Cache values for display smoothness
-byte disp_hour;
-byte disp_min;
-byte disp_sec;
-byte disp_day;
-byte disp_month;
 
 // ------------- Time management variables -------------
 
@@ -123,11 +87,11 @@ boolean blankSeparators = false;
 
 // --------------- Ambient light dimming ---------------
 
-int dimDark = SENSOR_LOW_DEFAULT;
-int dimBright = SENSOR_HIGH_DEFAULT;
 double sensorLDRSmoothed = 0;
-int sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
+double sensorFactor = (double)SENSOR_SENSIT_DEFAULT / 100.0;
+int ldrValue = 0;
 
+// ----------------- Display management ----------------
 boolean blinkState;
 
 // ------------------- LED management ------------------
@@ -137,7 +101,6 @@ boolean upOrDown;
 // Used to control the separator LEDs
 boolean led1State;
 boolean led2State;
-boolean ampm = false;
 
 // Strategy 3
 int changeSteps = 0;
