@@ -21,7 +21,7 @@
 
 // -------------------------------------------------------------------------------
 // Software version shown in config menu
-#define SOFTWARE_VERSION      5
+#define SOFTWARE_VERSION      7
 
 // -------------------------------------------------------------------------------
 #define MIN_DIM_DEFAULT       4  // The default minimum dim count
@@ -31,11 +31,11 @@
 // -------------------------------------------------------------------------------
 #define SENSOR_SENSIT_MIN     100 // Sensor Sensitivity
 #define SENSOR_SENSIT_MAX     400
-#define SENSOR_SENSIT_DEFAULT 300
+#define SENSOR_SENSIT_DEFAULT 200
 
 #define SENSOR_THRSH_MIN      0   // Bright is when we have LDR value = 0, when we read less than this value, we have full brightness
 #define SENSOR_THRSH_MAX      500
-#define SENSOR_THRSH_DEFAULT  200
+#define SENSOR_THRSH_DEFAULT  100
 
 #define SENSOR_SMOOTH_READINGS_MIN     1
 #define SENSOR_SMOOTH_READINGS_MAX     500
@@ -186,18 +186,14 @@
 #define BLANK_MODE_MAX                  3
 #define BLANK_MODE_DEFAULT              2
 
-// -------------------------------------------------------------------------------
+// --------------------------- Strategy Backlights -------------------------------
 #define BACKLIGHT_MIN                   0
-#define BACKLIGHT_FIXED                 0   // Just define a colour and stick to it
-#define BACKLIGHT_PULSE                 1   // pulse the defined colour
-#define BACKLIGHT_CYCLE                 2   // cycle through random colours
-#define BACKLIGHT_FIXED_DIM             3   // A defined colour, but dims with bulb dimming
-#define BACKLIGHT_PULSE_DIM             4   // pulse the defined colour, dims with bulb dimming
-#define BACKLIGHT_CYCLE_DIM             5   // cycle through random colours, dims with bulb dimming
-#define BACKLIGHT_COLOUR_TIME           6   // use "ColourTime" - different colours for each digit value
-#define BACKLIGHT_COLOUR_TIME_DIM       7   // use "ColourTime" - dims with bulb dimming
-#define BACKLIGHT_MAX                   7
-#define BACKLIGHT_DEFAULT               4
+#define BACKLIGHT_FIXED                 0  // Just define a colour and stick to it
+#define BACKLIGHT_CYCLE                 1  // cycle through random colours, strategy 3
+#define BACKLIGHT_COLOUR_TIME           2  // use "ColourTime" - different colours for each digit value
+#define BACKLIGHT_DAY_OF_WEEK           3  // use "DayOfWeek" - different colours for each day
+#define BACKLIGHT_MAX                   3
+#define BACKLIGHT_DEFAULT               1
 
 // -------------------------------------------------------------------------------
 #define CYCLE_SPEED_MIN                 4
@@ -236,6 +232,11 @@
 #define BACKLIGHT_DIM_FACTOR_MIN        10
 #define BACKLIGHT_DIM_FACTOR_MAX        100
 #define BACKLIGHT_DIM_FACTOR_DEFAULT    100
+
+// -------------------------------------------------------------------------------
+#define EXT_DIM_FACTOR_MIN              10
+#define EXT_DIM_FACTOR_MAX              100
+#define EXT_DIM_FACTOR_DEFAULT          100
 
 // -------------------------------------------------------------------------------
 // RTC address of the onboard DS1307 (if installed)

@@ -77,8 +77,9 @@ void setPinModes() {
   pinMode(LATCHPin, OUTPUT);
   pinMode(CLOCKPin, OUTPUT);
   pinMode(DATA1Pin, OUTPUT);
+
+  // The LED Pins
   pinMode(LEDPin1, OUTPUT);
-  pinMode(LEDPin2, OUTPUT);
   pinMode(LEDPin2, OUTPUT);
 
   // NOTE: Grounding the input pin causes it to actuate

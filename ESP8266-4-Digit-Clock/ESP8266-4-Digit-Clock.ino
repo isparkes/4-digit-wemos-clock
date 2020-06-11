@@ -47,6 +47,7 @@
 #include "ClockUtils.h"
 #include "ClockDefs.h"
 #include "ESP_DS1307.h"
+#include "LEDManager.h"
 #include "NtpAsync.h"
 #include "HtmlServer.h"
 #include "SPIFFS.h"
@@ -287,9 +288,6 @@ void setup()
   ntpAsync.setDebugOutput(true);
 #endif
 
-  // Set up the LED output
-  leds.Begin();
-
   // Set up the display for the diags - this sets up the interrupt routine
   allBright();
   outputDisplay();
@@ -309,24 +307,28 @@ void setup()
 
   timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 1
 
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 2
+
+  ledManager.setUp();
+  ledManager.setLDRRange(COUNTS_PER_DIGIT);
+  debugMsg("LED manager started");
 
   setPinModes();
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 3
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 4
   delay(1000);
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 5
   for (int i = 0 ; i < 25 ; i++) {
     button1.checkButton(millis());
   }
@@ -337,23 +339,37 @@ void setup()
     ESP.restart();
   }
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 6
 
-  debugMsg("Getting SPIFFS");
   if (!spiffs.getConfigFromSpiffs(&current_config)) {
-    debugMsg("No config found - resetting everything");
-    factoryReset();
-    setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
+    if (spiffs.testMountSpiffs()) {
+      debugManager.debugMsg("No config found - resetting everything");
+      factoryReset();
+      setDiagnosticLED(DIAGS_SPIFFS, STATUS_BLUE);
+    } else {
+      // we couldn't mount SPIFFS because no SPIFFS is available
+      setDiagnosticLED(DIAGS_SPIFFS, STATUS_RED);
+    }
   } else {
     setDiagnosticLED(DIAGS_SPIFFS, STATUS_GREEN);
-  }
 
+    setWebAuthentication(current_config.webAuthentication);
+    setWebUserName(current_config.webUsername);
+    setWebPassword(current_config.webPassword);
+    
+    ntpAsync.setTZS(current_config.tzs);
+    ntpAsync.setNtpPool(current_config.ntpPool);
+    ntpAsync.setUpdateInterval(current_config.ntpUpdateInterval);
+
+    ledManager.recalculateVariables();
+  }
+  
   // **********************************************************************
 
   // Clear down any spurious button action
   button1.reset();
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 7
   current_config.testMode = false;
   if (current_config.testMode) {
     debugMsg("Doing test sequence");
@@ -372,7 +388,7 @@ void setup()
     // set backlights to change with the displayed digits
     current_config.backlightMode = BACKLIGHT_COLOUR_TIME;
 
-    // All the digits on full
+    // All the digits on fullledManager.
     allBright();
 
     int secCount = 0;
@@ -423,13 +439,13 @@ void setup()
 
   // **********************************************************************
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 8
   wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
   wifiManager.setAPCallback(configModeCallback);
 
   setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 9
 
   boolean connected = false;
   connected = wifiManager.autoConnect(WiFi.hostname().c_str(), "SetMeUp!");
@@ -451,7 +467,7 @@ void setup()
   WiFi.setAutoReconnect(true);
 
   // See if we can already get the time
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 10
   ntpAsync.getTimeFromNTP();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
   long startSeachMs = millis();
@@ -471,28 +487,28 @@ void setup()
     setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
   }
 
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 11
   setServerPageHandlers();
   server.begin();
   debugMsg("HTTP server started");
 
   // Enable OTA updates
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 12
   httpUpdater.setup(&server, "/update", "admin", "update");
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 13
   if (mdns.begin(WiFi.hostname(), WiFi.localIP())) {
     debugMsg("MDNS responder started as http://" + WiFi.hostname() + ".local");
     mdns.addService("http", "tcp", 80);
   }
 
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 14
   setPIRPullup(current_config.usePIRPullup);
 
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
 
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 15
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
@@ -511,7 +527,7 @@ void setup()
   // don't blank anything right now
   blanked = false;
   setTubesAndLEDSBlankMode();
-  // loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 16
 
   // mark that we have done the EEPROM setup
   current_config.testMode = false;
@@ -519,7 +535,8 @@ void setup()
 
   debugMsg("Exit startup in 1 second");
   spiffs.getStatsFromSpiffs(&current_stats);
-  loadNumberArrayPOSTMessage(postStep++);
+  loadNumberArrayPOSTMessage(postStep++); // 17
+  ledManager.setDayOfWeek(weekday());
   delay(1000);
 }
 
@@ -617,6 +634,7 @@ void loop()
 
   // get the LDR ambient light reading
   ldrValue = getDimmingFromLDR();
+  ledManager.setLDRValue(ldrValue);
   fadeStep = ldrValue / current_config.fadeSteps;
 
   // Prepare the tick and backlight LEDs
@@ -736,6 +754,7 @@ void performOncePerHourProcessing() {
 void performOncePerDayProcessing() {
   debugMsg("---> OncePerDayProcessing");
   spiffs.saveStatsToSpiffs(&current_stats);
+  ledManager.setDayOfWeek(weekday());
 }
 
 // ************************************************************
@@ -755,7 +774,7 @@ void setLeds()
   float fixedDim = (float) current_config.backlightDimFactor / (float) 100;
   
   // calculate the PWM factor, goes between minDim% and 100%
-  float dimFactor = (float) ldrValue / (float) ISR_STEPS * fixedDim;
+  float dimFactor = (float) ldrValue / (float) COUNTS_PER_DIGIT * fixedDim;
   
   // Calculate the brightness factor based on the "pulse"
   float pwmFactor = (float) secsDelta / (float) 1000.0;
@@ -830,65 +849,11 @@ void setLeds()
     }
   }
 
-  if (blankLEDs) {
-    setAllLEDs( getLEDAdjusted(0, 1, 1),
-                getLEDAdjusted(0, 1, 1),
-                getLEDAdjusted(0, 1, 1));
-  } else {
-    // RGB Backlight PWM led output
-    switch (current_config.backlightMode) {
-      case BACKLIGHT_FIXED:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[current_config.redCnl], 1, fixedDim),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.grnCnl], 1, fixedDim),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.bluCnl], 1, fixedDim));
-        break;
-      case BACKLIGHT_PULSE:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[current_config.redCnl], pwmFactor, fixedDim),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.grnCnl], pwmFactor, fixedDim),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.bluCnl], pwmFactor, fixedDim));
-        break;
-      case BACKLIGHT_CYCLE:
-        cycleColours3(colors);
-        setAllLEDs( getLEDAdjusted(colors[0], 1, fixedDim),
-                    getLEDAdjusted(colors[1], 1, fixedDim),
-                    getLEDAdjusted(colors[2], 1, fixedDim));
-        break;
-      case BACKLIGHT_FIXED_DIM:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[current_config.redCnl], 1, dimFactor),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.grnCnl], 1, dimFactor),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.bluCnl], 1, dimFactor));
-        break;
-      case BACKLIGHT_PULSE_DIM:
-        setAllLEDs( getLEDAdjusted(rgb_backlight_curve[current_config.redCnl], pwmFactor, dimFactor),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.grnCnl], pwmFactor, dimFactor),
-                    getLEDAdjusted(rgb_backlight_curve[current_config.bluCnl], pwmFactor, dimFactor));
-        break;
-      case BACKLIGHT_CYCLE_DIM:
-        cycleColours3(colors);
-        setAllLEDs( getLEDAdjusted(colors[0], 1, dimFactor),
-                    getLEDAdjusted(colors[1], 1, dimFactor),
-                    getLEDAdjusted(colors[2], 1, dimFactor));
-        break;
-      case BACKLIGHT_COLOUR_TIME:
-        for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[numberArray[i]], 1, fixedDim);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[numberArray[i]], 1, fixedDim);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[numberArray[i]], 1, fixedDim);
-        }
-        outputLEDBuffer();
-        break;
-      case BACKLIGHT_COLOUR_TIME_DIM:
-        for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-          ledR[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeR[numberArray[i]], 1, dimFactor);
-          ledG[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeG[numberArray[i]], 1, dimFactor);
-          ledB[DIGIT_COUNT - 1 - i] = getLEDAdjusted(colourTimeB[numberArray[i]], 1, dimFactor);
-        }
-        outputLEDBuffer();
-        break;
-    }
-  }
 
-  // Blinking for
+  // output the backlight/underlight LEDs
+  ledManager.setPulseValue(secsDelta);  
+  ledManager.processLedStatus();
+  
   blinkState = (secsDeltaAbs % 500) > 250;
 }
 
@@ -923,29 +888,6 @@ boolean checkPIR(unsigned long nowMillis) {
 // ************************************************************
 boolean checkPIRInstalled() {
   return pirInstalled;
-}
-
-// ************************************************************
-// Set back light LEDs to the same colour
-// ************************************************************
-void setAllLEDs(byte red, byte green, byte blue) {
-  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-    ledR[i] = red;
-    ledG[i] = green;
-    ledB[i] = blue;
-  }
-  outputLEDBuffer();
-}
-
-// ************************************************************
-// Put the led buffers out
-// ************************************************************
-void outputLEDBuffer() {
-  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-    RgbColor color(ledR[i], ledG[i], ledB[i]);
-    leds.SetPixelColor(i, color);
-  }
-  leds.Show();
 }
 
 // ************************************************************
@@ -1084,7 +1026,7 @@ void setNextMode(int displayMode) {
         break;
       }
     case MODE_RED_CNL: {
-        if ((current_config.backlightMode== BACKLIGHT_CYCLE) || (current_config.backlightMode== BACKLIGHT_CYCLE_DIM) || (current_config.backlightMode== BACKLIGHT_COLOUR_TIME) || (current_config.backlightMode== BACKLIGHT_COLOUR_TIME_DIM))  {
+        if ((current_config.backlightMode== BACKLIGHT_CYCLE) || (current_config.backlightMode== BACKLIGHT_COLOUR_TIME))  {
           // Skip if we are in cycle mode
           setNewNextMode(MODE_CYCLE_SPEED);
         }
@@ -1103,7 +1045,7 @@ void setNextMode(int displayMode) {
         break;
       }
     case MODE_CYCLE_SPEED: {
-        if ((current_config.backlightMode != BACKLIGHT_CYCLE) && (current_config.backlightMode != BACKLIGHT_CYCLE_DIM))  {
+        if (current_config.backlightMode != BACKLIGHT_CYCLE) {
           // Show only if we are in cycle mode
           setNewNextMode(MODE_MIN_DIM_UP);
         }
@@ -1457,7 +1399,7 @@ void processCurrentMode(int displayMode) {
         }
         loadNumberArrayConfInt(current_config.fadeSteps, displayMode);
         displayConfig();
-        fadeStep = ISR_STEPS / current_config.fadeSteps;
+        fadeStep = COUNTS_PER_DIGIT / current_config.fadeSteps;
         break;
       }
     case MODE_FADE_STEPS_DOWN: {
@@ -1469,7 +1411,7 @@ void processCurrentMode(int displayMode) {
         }
         loadNumberArrayConfInt(current_config.fadeSteps, displayMode);
         displayConfig();
-        fadeStep = ISR_STEPS / current_config.fadeSteps;
+        fadeStep = COUNTS_PER_DIGIT / current_config.fadeSteps;
         break;
       }
     case MODE_DISPLAY_SCROLL_STEPS_DOWN: {
@@ -1539,7 +1481,7 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_RED_CNL: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_CYCLE_DIM) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
+        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME))  {
           // Skip if we are in cycle mode
           nextMode++;
           currentMode++;
@@ -1556,7 +1498,7 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_GRN_CNL: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_CYCLE_DIM) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
+        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME)) {
           // Skip if we are in cycle mode
           nextMode++;
           currentMode++;
@@ -1573,7 +1515,7 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_BLU_CNL: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_CYCLE_DIM) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
+        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME))  {
           // Skip if we are in cycle mode
           nextMode++;
           currentMode++;
@@ -1590,7 +1532,7 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_CYCLE_SPEED: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_CYCLE_DIM) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME_DIM))  {
+        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME))  {
           // Skip if we are in cycle mode
           nextMode++;
           currentMode++;
@@ -1658,77 +1600,6 @@ void processCurrentMode(int displayMode) {
         loadNumberArrayTestDigits();
         break;
       }
-  }
-}
-
-// ************************************************************
-// output a PWM LED channel, adjusting for dimming and PWM
-// brightness:
-// rawValue: The raw brightness value between 0 - 255
-// ledPWMVal: The pwm factor between 0 - 1
-// dimFactor: The dimming value between 0 - 1
-// ************************************************************
-byte getLEDAdjusted(float rawValue, float ledPWMVal, float dimFactor) {
-  byte dimmedPWMVal = (byte)(rawValue * ledPWMVal * dimFactor);
-  return dim_curve[dimmedPWMVal];
-}
-
-// ************************************************************
-// Colour cycling 3: one colour dominates
-// ************************************************************
-void cycleColours3(int colors[3]) {
-  cycleCount++;
-  if (cycleCount > current_config.cycleSpeed) {
-    cycleCount = 0;
-
-    if (changeSteps == 0) {
-      changeSteps = random(256);
-      currentColour = random(3);
-    }
-
-    changeSteps--;
-
-    switch (currentColour) {
-      case 0:
-        if (colors[0] < 255) {
-          colors[0]++;
-          if (colors[1] > 0) {
-            colors[1]--;
-          }
-          if (colors[2] > 0) {
-            colors[2]--;
-          }
-        } else {
-          changeSteps = 0;
-        }
-        break;
-      case 1:
-        if (colors[1] < 255) {
-          colors[1]++;
-          if (colors[0] > 0) {
-            colors[0]--;
-          }
-          if (colors[2] > 0) {
-            colors[2]--;
-          }
-        } else {
-          changeSteps = 0;
-        }
-        break;
-      case 2:
-        if (colors[2] < 255) {
-          colors[2]++;
-          if (colors[0] > 0) {
-            colors[0]--;
-          }
-          if (colors[1] > 0) {
-            colors[1]--;
-          }
-        } else {
-          changeSteps = 0;
-        }
-        break;
-    }
   }
 }
 
@@ -2429,28 +2300,8 @@ void setTubesAndLEDSBlankMode() {
     blankLEDs = false;
     blankSeparators = false;
   }
-}
 
-// ************************************************************
-// Random colour flash from the back lights
-// ************************************************************
-void randomRGBFlash(int delayVal) {
-  // Set up the PRNG with something so that it looks random
-  randomSeed(analogRead(LDRPin));
-
-  if (random(3) == 0) {
-    setAllLEDs(255, 0, 0);
-  }
-  if (random(3) == 0) {
-    setAllLEDs(0, 255, 0);
-  }
-  if (random(3) == 0) {
-    setAllLEDs(0, 0, 255);
-  }
-  delay(delayVal);
-
-  setAllLEDs(0, 0, 0);
-  delay(delayVal);
+  ledManager.setBlanked(blankLEDs);
 }
 
 // ************************************************************
@@ -2458,32 +2309,7 @@ void randomRGBFlash(int delayVal) {
 // state: 0 = red, 1 = orange, 2 = green, 3 = blue
 // ************************************************************
 void setDiagnosticLED(byte stepNumber, byte state) {
-  for (int i = 0 ; i < DIGIT_COUNT ; i++) {
-    if (i > stepNumber) {
-      ledR[i] = ledG[i] = ledB[i] = 0;
-    } else if (i == stepNumber) {
-      if (state == STATUS_RED) {
-        ledR[i] = 0xff;
-        ledG[i] = 0;
-        ledB[i] = 0;
-      } else if (state == STATUS_YELLOW) {
-        ledR[i] = 0xff;
-        ledG[i] = 0x7f;
-        ledB[i] = 0x0f;
-      } else if (state == STATUS_GREEN) {
-        ledR[i] = 0;
-        ledG[i] = 0xff;
-        ledB[i] = 0;
-      } else if (state == STATUS_BLUE) {
-        ledR[i] = 0;
-        ledG[i] = 0;
-        ledB[i] = 0xff;
-      }
-    }
-  }
-  outputLEDBuffer();
-
-  // A little pause for effect
+  ledManager.setDiagnosticLED(stepNumber, state);
   delay(500);
 }
 
@@ -2609,10 +2435,10 @@ int getDimmingFromLDR() {
     int returnValue = (sensorLDRSmoothed + offset) / factor;
 
     if (returnValue < current_config.minDim) returnValue = current_config.minDim;
-    if (returnValue > ISR_STEPS) returnValue = ISR_STEPS;
+    if (returnValue > COUNTS_PER_DIGIT) returnValue = COUNTS_PER_DIGIT;
     return returnValue;
   } else {
-    return ISR_STEPS;
+    return COUNTS_PER_DIGIT;
   }
 }
 
@@ -2621,41 +2447,55 @@ int getDimmingFromLDR() {
 // ************************************************************
 void factoryReset() {
   ntpAsync.resetDefaults();
-  current_config.hourMode = HOUR_MODE_DEFAULT;
-  current_config.blankLeading = LEAD_BLANK_DEFAULT;
-  current_config.fade = FADE_DEFAULT;
-  current_config.fadeSteps = FADE_STEPS_DEFAULT;
-  current_config.scrollback = SCROLLBACK_DEFAULT;
-  current_config.scrollSteps = SCROLL_STEPS_DEFAULT;
-  current_config.dateFormat = DATE_FORMAT_DEFAULT;
-  current_config.dayBlanking = DAY_BLANKING_DEFAULT;
-  current_config.thresholdBright = SENSOR_THRSH_DEFAULT;
-  current_config.sensitivityLDR = SENSOR_SENSIT_DEFAULT;
-  current_config.sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
-  current_config.dateFormat = DATE_FORMAT_DEFAULT;
-  current_config.backlightMode = BACKLIGHT_DEFAULT;
-  current_config.redCnl = COLOUR_RED_CNL_DEFAULT;
-  current_config.grnCnl = COLOUR_GRN_CNL_DEFAULT;
-  current_config.bluCnl = COLOUR_BLU_CNL_DEFAULT;
-  current_config.blankHourStart = 0;
-  current_config.blankHourEnd = 7;
-  current_config.cycleSpeed = CYCLE_SPEED_DEFAULT;
-  current_config.minDim = MIN_DIM_DEFAULT;
-  current_config.antiGhost = ANTI_GHOST_DEFAULT;
-  current_config.pirTimeout = PIR_TIMEOUT_DEFAULT;
-  current_config.useLDR = USE_LDR_DEFAULT;
-  current_config.blankMode = BLANK_MODE_DEFAULT;
-  current_config.slotsMode = SLOTS_MODE_DEFAULT;
-  current_config.usePIRPullup = USE_PIR_PULLUP_DEFAULT;
-  current_config.ledMode = LED_BLINK_DEFAULT;
-  current_config.testMode = true;
-  setWebAuthentication(WEB_AUTH_DEFAULT);
-  setWebUserName(WEB_USERNAME_DEFAULT);
-  setWebPassword(WEB_PASSWORD_DEFAULT);
-  current_config.separatorDimFactor = SEP_DIM_DEFAULT;
-  current_config.backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
+  spiffs_config_t* cc = &current_config;
+  cc->ntpPool = ntpAsync.getNtpPool();
+  cc->ntpUpdateInterval = ntpAsync.getUpdateInterval();
+  cc->tzs = ntpAsync.getTZS();
 
-  spiffs.saveConfigToSpiffs(&current_config);
+  cc->hourMode = HOUR_MODE_DEFAULT;
+  cc->blankLeading = LEAD_BLANK_DEFAULT;
+  cc->dateFormat = DATE_FORMAT_DEFAULT;
+  cc->dayBlanking = DAY_BLANKING_DEFAULT;
+
+  cc->thresholdBright = SENSOR_THRSH_DEFAULT;
+  cc->sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
+  cc->sensitivityLDR = SENSOR_SENSIT_DEFAULT;
+  cc->minDim = MIN_DIM_DEFAULT;
+
+  cc->dateFormat = DATE_FORMAT_DEFAULT;
+  cc->dayBlanking = DAY_BLANKING_DEFAULT;
+  cc->backlightMode = BACKLIGHT_DEFAULT;
+  cc->useBLDim = true;
+  cc->useBLPulse = false;
+  cc->redCnl = COLOUR_RED_CNL_DEFAULT;
+  cc->grnCnl = COLOUR_GRN_CNL_DEFAULT;
+  cc->bluCnl = COLOUR_BLU_CNL_DEFAULT;
+  cc->blankHourStart = 0;
+  cc->blankHourEnd = 7;
+  cc->cycleSpeed = CYCLE_SPEED_DEFAULT;
+  cc->pirTimeout = PIR_TIMEOUT_DEFAULT;
+  cc->useLDR = USE_LDR_DEFAULT;
+  cc->blankMode = BLANK_MODE_DEFAULT;
+  cc->slotsMode = SLOTS_MODE_DEFAULT;
+  cc->usePIRPullup = USE_PIR_PULLUP_DEFAULT;
+  cc->ledMode = LED_BLINK_DEFAULT;
+  cc->testMode = true;
+  setWebAuthentication(WEB_AUTH_DEFAULT);
+  cc->webAuthentication = getWebAuthentication();
+  setWebUserName(WEB_USERNAME_DEFAULT);
+  cc->webUsername = getWebUserName();
+  setWebPassword(WEB_PASSWORD_DEFAULT);
+  cc->webPassword = getWebPassword();
+  cc->backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
+  cc->statusModeL = STATUS_LED_MODE_ONLINE;
+  cc->statusModeR = STATUS_LED_MODE_NTP;
+  cc->preheatStrength = 0;
+  cc->extDimFactor = EXT_DIM_FACTOR_DEFAULT;
+  cc->separatorDimFactor = SEP_DIM_DEFAULT;
+  cc->fadeSteps = FADE_STEPS_DEFAULT;
+  cc->scrollSteps = SCROLL_STEPS_DEFAULT;
+
+  spiffs.saveConfigToSpiffs(cc);
 }
 
 void saveToSpiffsIfChanged(boolean changed) {
@@ -2734,7 +2574,7 @@ void rootPageHandler() {
   response_message += getTableFoot();
 
   // ******************** Clock Info table ***************************
-  float digitBrightnessPercent = getDimmingFromLDR() * 100.0 / (float) ISR_STEPS;
+  float digitBrightnessPercent = getDimmingFromLDR() * 100.0 / (float) COUNTS_PER_DIGIT;
   String motionSensorState = checkPIRInstalled() ? getPIRStateDisplay() : "Not installed";
   String rtcState = useRTC ? "Installed" : "Not installed";
   String timeSource;
@@ -2797,17 +2637,14 @@ void timeServerPageHandler() {
   debugMsg("Time page in");
 
   boolean changed = false;
-  String ntpPool = ntpAsync.getNtpPool();
-  String tzs = ntpAsync.getTZS();
-  int ntpUpdateInterval = ntpAsync.getUpdateInterval();
   
-  checkServerArgString("ntppool", "NTP Pool", changed, ntpPool);
-  checkServerArgInt("ntpupdate", "NTP update interval", changed, ntpUpdateInterval);
-  checkServerArgString("tzs", "Time Zone String", changed, tzs);
+  checkServerArgString("ntppool", "NTP Pool", changed, current_config.ntpPool);
+  checkServerArgInt("ntpupdate", "NTP update interval", changed, current_config.ntpUpdateInterval);
+  checkServerArgString("tzs", "Time Zone String", changed, current_config.tzs);
   if (changed) {
-    ntpAsync.setTZS(tzs);
-    ntpAsync.setNtpPool(ntpPool);
-    ntpAsync.setUpdateInterval(ntpUpdateInterval);
+    ntpAsync.setTZS(current_config.tzs);
+    ntpAsync.setNtpPool(current_config.ntpPool);
+    ntpAsync.setUpdateInterval(current_config.ntpUpdateInterval);
   }
   saveToSpiffsIfChanged(changed);
 
@@ -2938,7 +2775,7 @@ void clockConfigPageHandler() {
   }
   saveToSpiffsIfChanged(changed);
   
-  // ledManager.recalculateVariables();
+  ledManager.recalculateVariables();
 
   // -----------------------------------------------------------------------------
   String response_message = getHTMLHead(getIsConnected());
@@ -3083,22 +2920,23 @@ void clockConfigPageHandler() {
 
   // Day blanking
   response_message += getDropDownHeader("Day blanking:", "dayBlanking", true, pirInstalled);
-  response_message += getDropDownOption("0", "Never blank", (current_config.dayBlanking == 0));
-  response_message += getDropDownOption("1", "Blank all day on weekends", (current_config.dayBlanking == 1));
-  response_message += getDropDownOption("2", "Blank all day on week days", (current_config.dayBlanking == 2));
-  response_message += getDropDownOption("3", "Blank always", (current_config.dayBlanking == 3));
-  response_message += getDropDownOption("4", "Blank during selected hours every day", (current_config.dayBlanking == 4));
-  response_message += getDropDownOption("5", "Blank during selected hours on week days and all day on weekends", (current_config.dayBlanking == 5));
-  response_message += getDropDownOption("6", "Blank during selected hours on weekends and all day on week days", (current_config.dayBlanking == 6));
-  response_message += getDropDownOption("7", "Blank during selected hours on weekends only", (current_config.dayBlanking == 7));
-  response_message += getDropDownOption("8", "Blank during selected hours on week days only", (current_config.dayBlanking == 8));
+  response_message += getDropDownOption("0", "Never blank", (current_config.dayBlanking == DAY_BLANKING_NEVER));
+  response_message += getDropDownOption("1", "Blank all day on weekends", (current_config.dayBlanking == DAY_BLANKING_WEEKEND));
+  response_message += getDropDownOption("2", "Blank all day on week days", (current_config.dayBlanking == DAY_BLANKING_WEEKDAY));
+  response_message += getDropDownOption("3", "Blank always", (current_config.dayBlanking == DAY_BLANKING_ALWAYS));
+  response_message += getDropDownOption("4", "Blank during selected hours every day", (current_config.dayBlanking == DAY_BLANKING_HOURS));
+  response_message += getDropDownOption("5", "Blank during selected hours on week days and all day on weekends", (current_config.dayBlanking == DAY_BLANKING_WEEKEND_OR_HOURS));
+  response_message += getDropDownOption("6", "Blank during selected hours on weekends and all day on week days", (current_config.dayBlanking == DAY_BLANKING_WEEKDAY_OR_HOURS));
+  response_message += getDropDownOption("7", "Blank during selected hours on weekends only", (current_config.dayBlanking == DAY_BLANKING_WEEKEND_AND_HOURS));
+  response_message += getDropDownOption("8", "Blank during selected hours on week days only", (current_config.dayBlanking == DAY_BLANKING_WEEKDAY_AND_HOURS));
   response_message += getDropDownFooter();
 
   // Blank Mode
   response_message += getDropDownHeader("Blank Mode:", "blankMode", true, false);
-  response_message += getDropDownOption("0", "Blank tubes only", (current_config.blankMode == 0));
-  response_message += getDropDownOption("1", "Blank LEDs only", (current_config.blankMode == 1));
-  response_message += getDropDownOption("2", "Blank tubes and LEDs", (current_config.blankMode == 2));
+  response_message += getDropDownOption("0", "Blank tubes only", (current_config.blankMode == BLANK_MODE_TUBES));
+  response_message += getDropDownOption("1", "Blank LEDs only", (current_config.blankMode == BLANK_MODE_LEDS));
+  response_message += getDropDownOption("2", "Blank tubes and LEDs", (current_config.blankMode == BLANK_MODE_BOTH));
+  response_message += getDropDownOption("3", "Blank everything", (current_config.blankMode == BLANK_MODE_ALL));
   response_message += getDropDownFooter();
 
   boolean hoursDisabled = (current_config.dayBlanking < 4) || pirInstalled;
@@ -3118,10 +2956,10 @@ void clockConfigPageHandler() {
 
   // Back light
   response_message += getDropDownHeader("Back light:", "backlightMode", true, false);
-  response_message += getDropDownOption("0", "Fixed RGB backlight", (current_config.backlightMode == 0));
-  response_message += getDropDownOption("1", "Cycling RGB backlight", (current_config.backlightMode == 1));
-  response_message += getDropDownOption("2", "'Colourtime' backlight", (current_config.backlightMode == 2));
-  response_message += getDropDownOption("3", "'Day of week' backlight", (current_config.backlightMode == 3));
+  response_message += getDropDownOption("0", "Fixed RGB backlight", (current_config.backlightMode == BACKLIGHT_FIXED));
+  response_message += getDropDownOption("1", "Cycling RGB backlight", (current_config.backlightMode == BACKLIGHT_CYCLE));
+  response_message += getDropDownOption("2", "'Colourtime' backlight", (current_config.backlightMode == BACKLIGHT_COLOUR_TIME));
+  response_message += getDropDownOption("3", "'Day of week' backlight", (current_config.backlightMode == BACKLIGHT_DAY_OF_WEEK));
   response_message += getDropDownFooter();
 
   // Cycle speed

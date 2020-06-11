@@ -12,7 +12,6 @@
 
 Transition transition(500, 1000, 3000); // Scroll/Scramble (Transition.h)  
 DS1307 Clock;                           // RTC, uses Analogue pins A4 (SDA) and A5 (SCL)
-NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> leds(DIGIT_COUNT, LED_DOUT);
 ClockButton button1(inputPin1, true);   // Clock button debounce and handling
 
 // ------------------------ NTP ------------------------
@@ -20,8 +19,6 @@ ClockButton button1(inputPin1, true);   // Clock button debounce and handling
 #define TIME_ZONE_STRING_DEFAULT "CET-1CEST,M3.5.0,M10.5.0/3"
 
 // ------------------ Display Variables ----------------
-
-#define ISR_STEPS   20
 
 byte numberArray[DIGIT_COUNT]          = {0, 0, 0, 0};
 byte currNumberArray[DIGIT_COUNT]      = {0, 0, 0, 0};
@@ -34,7 +31,9 @@ byte ledsOffTime;
 
 // ------------------- Config Variables ----------------
 
-float fadeStep = ISR_STEPS / FADE_STEPS_DEFAULT;
+// This define to be moved
+#define COUNTS_PER_DIGIT       20
+float fadeStep = COUNTS_PER_DIGIT / FADE_STEPS_DEFAULT;
 
 byte cycleCount = 0;
 
