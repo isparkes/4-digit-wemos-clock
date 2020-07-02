@@ -102,8 +102,8 @@
 
 #define MODE_USE_LDR                    19 // 1 = use LDR, 0 = don't (and have 100% brightness)
 #define MODE_USE_LDR_DEFAULT            true
-#define MODE_MIN_DIM_UP                 20 // Mode "23"
-#define MODE_MIN_DIM_DOWN               21 // Mode "24"
+#define MODE_MIN_DIM_UP                 20 // 
+#define MODE_MIN_DIM_DOWN               21 // 
 
 #define MODE_BLANK_MODE                 22 // See "BLANK_MODE_" for values
 #define MODE_BLANK_MODE_DEFAULT         BLANK_MODE_BOTH
@@ -116,7 +116,7 @@
 // PIR
 #define MODE_PIR_TIMEOUT_UP             25 // See "PIR_TIMEOUT_" for values
 #define MODE_PIR_TIMEOUT_DOWN           26 //
-#define MODE_USE_PIR_PULLUP             27 // Mode "25" 1 = use Pullup
+#define MODE_USE_PIR_PULLUP             27 // 1 = use Pullup
 #define USE_PIR_PULLUP_DEFAULT          true
 
 // Back light
@@ -125,8 +125,8 @@
 #define MODE_GRN_CNL                    30 // >> See "COLOUR_CNL_" for values
 #define MODE_BLU_CNL                    31 //
 #define MODE_CYCLE_SPEED                32 // See "CYCLE_SPEED_" for values
-#define MODE_USE_PULSE                  33 // See "CYCLE_SPEED_" for values
-#define MODE_USE_DIM                    34 // See "CYCLE_SPEED_" for values
+#define MODE_USE_PULSE                  33 //
+#define MODE_USE_DIM                    34 //
 
 // Software Version
 #define MODE_VERSION                    35 // Mode "25"

@@ -1011,7 +1011,7 @@ void setNextMode(int displayMode) {
     case MODE_PIR_TIMEOUT_UP:
     case MODE_PIR_TIMEOUT_DOWN: {
         loadNumberArrayConfMode(displayMode);
-        displayConfig();
+        displayConfigWide();
         break;
       }
     case MODE_SLOTS_MODE: {
@@ -1025,7 +1025,7 @@ void setNextMode(int displayMode) {
         break;
       }
     case MODE_RED_CNL: {
-        if ((current_config.backlightMode== BACKLIGHT_CYCLE) || (current_config.backlightMode== BACKLIGHT_COLOUR_TIME))  {
+        if (current_config.backlightMode != BACKLIGHT_FIXED)  {
           // Skip if we are in cycle mode
           setNewNextMode(MODE_CYCLE_SPEED);
         }
@@ -1046,7 +1046,7 @@ void setNextMode(int displayMode) {
     case MODE_CYCLE_SPEED: {
         if (current_config.backlightMode != BACKLIGHT_CYCLE) {
           // Show only if we are in cycle mode
-          setNewNextMode(MODE_MIN_DIM_UP);
+          setNewNextMode(MODE_USE_PULSE);
         }
         loadNumberArrayConfInt(current_config.cycleSpeed, displayMode);
         displayConfig();
@@ -1065,6 +1065,16 @@ void setNextMode(int displayMode) {
       }
     case MODE_LED_BLINK: {
         loadNumberArrayConfInt(current_config.ledMode, displayMode);
+        displayConfig();
+        break;
+      }
+    case MODE_USE_PULSE: {
+        loadNumberArrayConfBool(current_config.useBLPulse, displayMode);
+        displayConfig();
+        break;
+      }
+    case MODE_USE_DIM: {
+        loadNumberArrayConfBool(current_config.useBLDim, displayMode);
         displayConfig();
         break;
       }
@@ -1443,7 +1453,7 @@ void processCurrentMode(int displayMode) {
           }
         }
         loadNumberArrayConfIntWide(current_config.pirTimeout);
-        displayConfig();
+        allBright();
         break;
       }
     case MODE_PIR_TIMEOUT_UP: {
@@ -1454,7 +1464,7 @@ void processCurrentMode(int displayMode) {
           }
         }
         loadNumberArrayConfIntWide(current_config.pirTimeout);
-        displayConfig();
+        allBright();
         break;
       }
     case MODE_SLOTS_MODE: {
@@ -1480,12 +1490,6 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_RED_CNL: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME))  {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
-        }
-
         if (button1.isButtonPressedAndReleased()) {
           current_config.redCnl++;
           if (current_config.redCnl > COLOUR_CNL_MAX) {
@@ -1497,12 +1501,6 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_GRN_CNL: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME)) {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
-        }
-
         if (button1.isButtonPressedAndReleased()) {
           current_config.grnCnl++;
           if (current_config.grnCnl > COLOUR_CNL_MAX) {
@@ -1514,12 +1512,6 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_BLU_CNL: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME))  {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
-        }
-
         if (button1.isButtonPressedAndReleased()) {
           current_config.bluCnl++;
           if (current_config.bluCnl > COLOUR_CNL_MAX) {
@@ -1531,12 +1523,6 @@ void processCurrentMode(int displayMode) {
         break;
       }
     case MODE_CYCLE_SPEED: {
-        if ((current_config.backlightMode == BACKLIGHT_CYCLE) || (current_config.backlightMode == BACKLIGHT_COLOUR_TIME))  {
-          // Skip if we are in cycle mode
-          nextMode++;
-          currentMode++;
-        }
-
         if (button1.isButtonPressedAndReleased()) {
           current_config.cycleSpeed = current_config.cycleSpeed + 2;
           if (current_config.cycleSpeed > CYCLE_SPEED_MAX) {
@@ -1551,7 +1537,7 @@ void processCurrentMode(int displayMode) {
         if (button1.isButtonPressedAndReleased()) {
           current_config.minDim++;
           if (current_config.minDim > MIN_DIM_MAX) {
-            current_config.minDim = MIN_DIM_MAX;
+            current_config.minDim = MIN_DIM_MIN;
           }
         }
         loadNumberArrayConfInt(current_config.minDim, displayMode);
@@ -1562,7 +1548,7 @@ void processCurrentMode(int displayMode) {
         if (button1.isButtonPressedAndReleased()) {
           current_config.minDim--;
           if (current_config.minDim < MIN_DIM_MIN) {
-            current_config.minDim = MIN_DIM_MIN;
+            current_config.minDim = MIN_DIM_MAX;
           }
         }
         loadNumberArrayConfInt(current_config.minDim, displayMode);
@@ -1586,6 +1572,22 @@ void processCurrentMode(int displayMode) {
           }
         }
         loadNumberArrayConfInt(current_config.ledMode, displayMode);
+        displayConfig();
+        break;
+      }
+    case MODE_USE_PULSE: {
+        if (button1.isButtonPressedAndReleased()) {
+          current_config.useBLPulse = !current_config.useBLPulse;
+        }
+        loadNumberArrayConfBool(current_config.useBLPulse, displayMode);
+        displayConfig();
+        break;
+      }
+    case MODE_USE_DIM: {
+        if (button1.isButtonPressedAndReleased()) {
+          current_config.useBLDim = !current_config.useBLDim;
+        }
+        loadNumberArrayConfBool(current_config.useBLDim, displayMode);
         displayConfig();
         break;
       }
@@ -1707,10 +1709,10 @@ void loadNumberArrayConfIntWide(int confValue) {
 // Show an configuration mode value
 // ************************************************************
 void loadNumberArrayConfMode(byte mode) {
-  numberArray[3] = (mode / 1) % 10;
-  numberArray[2] = (mode / 10) % 10;
-  numberArray[1] = 0;
-  numberArray[0] = 0;
+  numberArray[3] = 0;
+  numberArray[2] = 0;
+  numberArray[1] = (mode / 1) % 10;
+  numberArray[0] = (mode / 10) % 10;
 }
 
 // ************************************************************
@@ -2023,6 +2025,16 @@ void displayConfig() {
   displayType[1] = BLINK;
   displayType[2] = BRIGHT;
   displayType[3] = BRIGHT;
+}
+
+// ************************************************************
+// Display preset
+// ************************************************************
+void displayConfigWide() {
+  displayType[0] = BLINK;
+  displayType[1] = BLINK;
+  displayType[2] = BLANKED;
+  displayType[3] = BLANKED;
 }
 
 // ************************************************************
@@ -2831,8 +2843,7 @@ void clockConfigPageHandler() {
   // Slots Mode
   response_message += getDropDownHeader("Date Slots:", "slotsMode", true, false);
   response_message += getDropDownOption("0", "Don't use slots mode", (current_config.slotsMode == 0));
-  response_message += getDropDownOption("1", "Wipe In, Wipe Out", (current_config.slotsMode == 1));
-  response_message += getDropDownOption("2", "Bang In, Bang Out", (current_config.slotsMode == 2));
+  response_message += getDropDownOption("1", "Scroll In, Scramble Out", (current_config.slotsMode == 1));
   response_message += getDropDownFooter();
 
 #ifdef FEATURE_PREHEAT
