@@ -29,6 +29,7 @@ typedef struct {
   byte blankHourEnd;
   byte blankMode;
   boolean useLDR;
+  int pirTimeout;
   boolean usePIRPullup;
   byte backlightMode;
   boolean useBLPulse;
@@ -38,7 +39,6 @@ typedef struct {
   byte bluCnl;
   byte cycleSpeed;
   byte slotsMode;
-  int pirTimeout;
   boolean blankLeading;
   byte dateFormat;
   byte ledMode;

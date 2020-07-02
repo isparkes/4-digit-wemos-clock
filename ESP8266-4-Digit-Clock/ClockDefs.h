@@ -21,7 +21,7 @@
 
 // -------------------------------------------------------------------------------
 // Software version shown in config menu
-#define SOFTWARE_VERSION      7
+#define SOFTWARE_VERSION      8
 
 // -------------------------------------------------------------------------------
 #define MIN_DIM_DEFAULT       4  // The default minimum dim count
@@ -83,62 +83,58 @@
 #define MODE_YEARS_SET                  6
 
 // Basic settings
-#define MODE_12_24                      7  // Mode "00" 0 = 24, 1 = 12
+#define MODE_12_24                      7  // 0 = 24, 1 = 12
 #define HOUR_MODE_DEFAULT               false
-#define MODE_LEAD_BLANK                 8  // Mode "01" 1 = blanked
+#define MODE_LEAD_BLANK                 8  // 1 = blanked
 #define LEAD_BLANK_DEFAULT              false
-#define MODE_SCROLLBACK                 9  // Mode "02" 1 = use scrollback
+#define MODE_SCROLLBACK                 9  // 1 = use scrollback
 #define SCROLLBACK_DEFAULT              false
-#define MODE_FADE                       10 // Mode "03" 1 = use fade
+#define MODE_DISPLAY_SCROLL_STEPS_UP    10 // See "SCROLL_STEPS_" for values
+#define MODE_DISPLAY_SCROLL_STEPS_DOWN  11 // 
+#define MODE_FADE                       12 // 1 = use fade
 #define FADE_DEFAULT                    false
-#define MODE_DATE_FORMAT                11 // Mode "04"
-#define MODE_DAY_BLANKING               12 // Mode "05"
-#define MODE_HR_BLNK_START              13 // Mode "06" - skipped if not using hour blanking
-#define MODE_HR_BLNK_END                14 // Mode "07" - skipped if not using hour blanking
+#define MODE_FADE_STEPS_UP              13 // See "FADE_STEPS_" for values
+#define MODE_FADE_STEPS_DOWN            14 // 
+#define MODE_DATE_FORMAT                15 // See "DATE_FORMAT_" for values
+#define MODE_DAY_BLANKING               16 // See "DAY_BLANKING_" for values
+#define MODE_HR_BLNK_START              17 // skipped if not using hour blanking
+#define MODE_HR_BLNK_END                18 // skipped if not using hour blanking
 
-#define MODE_USE_LDR                    15 // Mode "08" 1 = use LDR, 0 = don't (and have 100% brightness)
+#define MODE_USE_LDR                    19 // 1 = use LDR, 0 = don't (and have 100% brightness)
 #define MODE_USE_LDR_DEFAULT            true
+#define MODE_MIN_DIM_UP                 20 // Mode "23"
+#define MODE_MIN_DIM_DOWN               21 // Mode "24"
 
-#define MODE_BLANK_MODE                 16 // Mode "09" 
+#define MODE_BLANK_MODE                 22 // See "BLANK_MODE_" for values
 #define MODE_BLANK_MODE_DEFAULT         BLANK_MODE_BOTH
 
-// Display tricks
-#define MODE_FADE_STEPS_UP              17 // Mode "10"
-#define MODE_FADE_STEPS_DOWN            18 // Mode "11"
-#define MODE_DISPLAY_SCROLL_STEPS_UP    19 // Mode "12"
-#define MODE_DISPLAY_SCROLL_STEPS_DOWN  20 // Mode "13"
-
-#define MODE_SLOTS_MODE                 21 // Mode "14"
+#define MODE_SLOTS_MODE                 23 // See "SLOTS_MODE_" for values
 
 // Separator LED mode
-#define MODE_LED_BLINK                  22 // Mode "15"
+#define MODE_LED_BLINK                  24 // See "LED_" for values
 
 // PIR
-#define MODE_PIR_TIMEOUT_UP             23 // Mode "16"
-#define MODE_PIR_TIMEOUT_DOWN           24 // Mode "17"
-
-// Back light
-#define MODE_BACKLIGHT_MODE             25 // Mode "18"
-#define MODE_RED_CNL                    26 // Mode "19"
-#define MODE_GRN_CNL                    27 // Mode "20"
-#define MODE_BLU_CNL                    28 // Mode "21"
-#define MODE_CYCLE_SPEED                29 // Mode "22"
-
-// Minimum dimming value for old tubes
-#define MODE_MIN_DIM_UP                 30 // Mode "23"
-#define MODE_MIN_DIM_DOWN               31 // Mode "24"
-
-// Use the PIR pin pullup resistor
-#define MODE_USE_PIR_PULLUP             32 // Mode "25" 1 = use Pullup
+#define MODE_PIR_TIMEOUT_UP             25 // See "PIR_TIMEOUT_" for values
+#define MODE_PIR_TIMEOUT_DOWN           26 //
+#define MODE_USE_PIR_PULLUP             27 // Mode "25" 1 = use Pullup
 #define USE_PIR_PULLUP_DEFAULT          true
 
+// Back light
+#define MODE_BACKLIGHT_MODE             28 // See "BACKLIGHT_" (ledManager) for values
+#define MODE_RED_CNL                    29 //
+#define MODE_GRN_CNL                    30 // >> See "COLOUR_CNL_" for values
+#define MODE_BLU_CNL                    31 //
+#define MODE_CYCLE_SPEED                32 // See "CYCLE_SPEED_" for values
+#define MODE_USE_PULSE                  33 // See "CYCLE_SPEED_" for values
+#define MODE_USE_DIM                    34 // See "CYCLE_SPEED_" for values
+
 // Software Version
-#define MODE_VERSION                    33 // Mode "25"
+#define MODE_VERSION                    35 // Mode "25"
 
 // Tube test - all six digits, so no flashing mode indicator
-#define MODE_TUBE_TEST                  34
+#define MODE_TUBE_TEST                  36
 
-#define MODE_MAX                        34
+#define MODE_MAX                        36
 
 // -------------------------------------------------------------------------------
 // Temporary display modes - accessed by a short press ( < 1S ) on the button when in MODE_TIME
@@ -194,11 +190,6 @@
 #define BACKLIGHT_DAY_OF_WEEK           3  // use "DayOfWeek" - different colours for each day
 #define BACKLIGHT_MAX                   3
 #define BACKLIGHT_DEFAULT               1
-
-// -------------------------------------------------------------------------------
-#define CYCLE_SPEED_MIN                 4
-#define CYCLE_SPEED_MAX                 64
-#define CYCLE_SPEED_DEFAULT             10
 
 // -------------------------------------------------------------------------------
 #define ANTI_GHOST_MIN                  0

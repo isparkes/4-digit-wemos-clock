@@ -28,7 +28,6 @@
 //**********************************************************************************
 //**********************************************************************************
 // Standard Libraries
-#include <FS.h>
 #include <Wire.h>
 
 // Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
@@ -1055,7 +1054,7 @@ void setNextMode(int displayMode) {
       }
     case MODE_MIN_DIM_UP:
     case MODE_MIN_DIM_DOWN: {
-        loadNumberArrayConfMode(displayMode);
+        loadNumberArrayConfInt(current_config.minDim, displayMode);
         displayConfig();
         break;
       }
@@ -1550,23 +1549,23 @@ void processCurrentMode(int displayMode) {
       }
     case MODE_MIN_DIM_UP: {
         if (button1.isButtonPressedAndReleased()) {
-          current_config.minDim += 10;
+          current_config.minDim++;
           if (current_config.minDim > MIN_DIM_MAX) {
             current_config.minDim = MIN_DIM_MAX;
           }
         }
-        loadNumberArrayConfIntWide(current_config.minDim);
+        loadNumberArrayConfInt(current_config.minDim, displayMode);
         displayConfig();
         break;
       }
     case MODE_MIN_DIM_DOWN: {
         if (button1.isButtonPressedAndReleased()) {
-          current_config.minDim -= 10;
+          current_config.minDim--;
           if (current_config.minDim < MIN_DIM_MIN) {
             current_config.minDim = MIN_DIM_MIN;
           }
         }
-        loadNumberArrayConfIntWide(current_config.minDim);
+        loadNumberArrayConfInt(current_config.minDim, displayMode);
         displayConfig();
         break;
       }
@@ -1615,8 +1614,13 @@ void processCurrentMode(int displayMode) {
 void loadNumberArrayTime() {
   numberArray[3] = minute() % 10;
   numberArray[2] = minute() / 10;
-  numberArray[1] = hour() % 10;
-  numberArray[0] = hour() / 10;
+  if (current_config.hourMode) {
+    numberArray[1] = hourFormat12() % 10;
+    numberArray[0] = hourFormat12() / 10;
+  } else {
+    numberArray[1] = hour() % 10;
+    numberArray[0] = hour() / 10;
+  }
 }
 
 // ************************************************************
@@ -2453,47 +2457,59 @@ void factoryReset() {
   cc->tzs = ntpAsync.getTZS();
 
   cc->hourMode = HOUR_MODE_DEFAULT;
-  cc->blankLeading = LEAD_BLANK_DEFAULT;
-  cc->dateFormat = DATE_FORMAT_DEFAULT;
-  cc->dayBlanking = DAY_BLANKING_DEFAULT;
+  cc->minDim = MIN_DIM_DEFAULT;
+  cc->fade = false;
+  cc->scrollback = false;
+  cc->fadeSteps = FADE_STEPS_DEFAULT;
+  cc->scrollSteps = SCROLL_STEPS_DEFAULT;
 
   cc->thresholdBright = SENSOR_THRSH_DEFAULT;
   cc->sensorSmoothCountLDR = SENSOR_SMOOTH_READINGS_DEFAULT;
   cc->sensitivityLDR = SENSOR_SENSIT_DEFAULT;
-  cc->minDim = MIN_DIM_DEFAULT;
 
+  cc->blankHourStart = 0;
+  cc->blankHourEnd = 7;
+  
   cc->dateFormat = DATE_FORMAT_DEFAULT;
   cc->dayBlanking = DAY_BLANKING_DEFAULT;
+  cc->blankMode = BLANK_MODE_DEFAULT;
+
+  cc->useLDR = USE_LDR_DEFAULT;
+  cc->pirTimeout = PIR_TIMEOUT_DEFAULT;
+  cc->usePIRPullup = USE_PIR_PULLUP_DEFAULT;
+  
   cc->backlightMode = BACKLIGHT_DEFAULT;
-  cc->useBLDim = true;
   cc->useBLPulse = false;
+  cc->useBLDim = true;
   cc->redCnl = COLOUR_RED_CNL_DEFAULT;
   cc->grnCnl = COLOUR_GRN_CNL_DEFAULT;
   cc->bluCnl = COLOUR_BLU_CNL_DEFAULT;
-  cc->blankHourStart = 0;
-  cc->blankHourEnd = 7;
   cc->cycleSpeed = CYCLE_SPEED_DEFAULT;
-  cc->pirTimeout = PIR_TIMEOUT_DEFAULT;
-  cc->useLDR = USE_LDR_DEFAULT;
-  cc->blankMode = BLANK_MODE_DEFAULT;
+  
   cc->slotsMode = SLOTS_MODE_DEFAULT;
-  cc->usePIRPullup = USE_PIR_PULLUP_DEFAULT;
+  cc->blankLeading = LEAD_BLANK_DEFAULT;
+  
+  cc->dateFormat = DATE_FORMAT_DEFAULT;
   cc->ledMode = LED_BLINK_DEFAULT;
+  cc->statusModeL = STATUS_LED_MODE_ONLINE;
+  cc->statusModeR = STATUS_LED_MODE_NTP;
+  cc->backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
+  
   cc->testMode = true;
+  
   setWebAuthentication(WEB_AUTH_DEFAULT);
   cc->webAuthentication = getWebAuthentication();
   setWebUserName(WEB_USERNAME_DEFAULT);
   cc->webUsername = getWebUserName();
   setWebPassword(WEB_PASSWORD_DEFAULT);
   cc->webPassword = getWebPassword();
-  cc->backlightDimFactor = BACKLIGHT_DIM_FACTOR_DEFAULT;
-  cc->statusModeL = STATUS_LED_MODE_ONLINE;
-  cc->statusModeR = STATUS_LED_MODE_NTP;
+
   cc->preheatStrength = 0;
   cc->extDimFactor = EXT_DIM_FACTOR_DEFAULT;
   cc->separatorDimFactor = SEP_DIM_DEFAULT;
-  cc->fadeSteps = FADE_STEPS_DEFAULT;
-  cc->scrollSteps = SCROLL_STEPS_DEFAULT;
+
+  cc->doNotDimIndLEDs = false;
+  cc->antiGhost = ANTI_GHOST_DEFAULT;
 
   spiffs.saveConfigToSpiffs(cc);
 }
