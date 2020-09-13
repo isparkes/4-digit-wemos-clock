@@ -2659,7 +2659,7 @@ void rootPageHandler() {
 }
 
 // ************************************************************
-// Get the local time from the time server, and modify the time server URL if needed
+// Manage the NTP Settings
 // ************************************************************
 void timeServerPageHandler() {
   debugMsg("Time page in");
