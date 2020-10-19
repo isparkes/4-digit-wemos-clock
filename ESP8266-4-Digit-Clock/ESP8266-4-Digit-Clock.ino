@@ -306,13 +306,13 @@ void setup()
 
   timer1_write(INT_MUX_COUNTS * COUNTS_PER_DIGIT);
 
-  loadNumberArrayPOSTMessage(postStep++); // 1
+  loadNumberArrayPOSTMessage(postStep++); // 0
 
   // Start I2C now so that the update from NTP can be sent to the RTC immediately
   Wire.begin(4, 5); // SDA = D2 = pin 4, SCL = D1 = pin 5
   debugMsg("I2C master started");
 
-  loadNumberArrayPOSTMessage(postStep++); // 2
+  loadNumberArrayPOSTMessage(postStep++); // 1
 
   ledManager.setUp();
   ledManager.setLDRRange(COUNTS_PER_DIGIT);
@@ -320,14 +320,14 @@ void setup()
 
   setPinModes();
 
-  loadNumberArrayPOSTMessage(postStep++); // 3
+  loadNumberArrayPOSTMessage(postStep++); // 2
   button1.reset();
 
   setDiagnosticLED(DIAGS_SPIFFS, STATUS_YELLOW);
-  loadNumberArrayPOSTMessage(postStep++); // 4
+  loadNumberArrayPOSTMessage(postStep++); // 3
   delay(1000);
 
-  loadNumberArrayPOSTMessage(postStep++); // 5
+  loadNumberArrayPOSTMessage(postStep++); // 4
   for (int i = 0 ; i < 25 ; i++) {
     button1.checkButton(millis());
   }
@@ -338,7 +338,7 @@ void setup()
     ESP.restart();
   }
 
-  loadNumberArrayPOSTMessage(postStep++); // 6
+  loadNumberArrayPOSTMessage(postStep++); // 5
 
   if (!spiffs.getConfigFromSpiffs(&current_config)) {
     if (spiffs.testMountSpiffs()) {
@@ -368,7 +368,7 @@ void setup()
   // Clear down any spurious button action
   button1.reset();
 
-  loadNumberArrayPOSTMessage(postStep++); // 7
+  loadNumberArrayPOSTMessage(postStep++); // 6
   current_config.testMode = false;
   if (current_config.testMode) {
     debugMsg("Doing test sequence");
@@ -438,13 +438,13 @@ void setup()
 
   // **********************************************************************
 
-  loadNumberArrayPOSTMessage(postStep++); // 8
+  loadNumberArrayPOSTMessage(postStep++); // 7
   wifiManager.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
   wifiManager.setAPCallback(configModeCallback);
 
   setDiagnosticLED(DIAGS_WIFI, STATUS_YELLOW);
 
-  loadNumberArrayPOSTMessage(postStep++); // 9
+  loadNumberArrayPOSTMessage(postStep++); // 8
 
   boolean connected = false;
   connected = wifiManager.autoConnect(WiFi.hostname().c_str(), "SetMeUp!");
@@ -466,7 +466,7 @@ void setup()
   WiFi.setAutoReconnect(true);
 
   // See if we can already get the time
-  loadNumberArrayPOSTMessage(postStep++); // 10
+  loadNumberArrayPOSTMessage(postStep++); // 9
   ntpAsync.getTimeFromNTP();
   setDiagnosticLED(DIAGS_NTP, STATUS_YELLOW);
   long startSeachMs = millis();
@@ -486,28 +486,28 @@ void setup()
     setDiagnosticLED(DIAGS_NTP, STATUS_GREEN);
   }
 
-  loadNumberArrayPOSTMessage(postStep++); // 11
+  loadNumberArrayPOSTMessage(postStep++); // 10
   setServerPageHandlers();
   server.begin();
   debugMsg("HTTP server started");
 
   // Enable OTA updates
-  loadNumberArrayPOSTMessage(postStep++); // 12
+  loadNumberArrayPOSTMessage(postStep++); // 11
   httpUpdater.setup(&server, "/update", "admin", "update");
 
-  loadNumberArrayPOSTMessage(postStep++); // 13
+  loadNumberArrayPOSTMessage(postStep++); // 12
   if (mdns.begin(WiFi.hostname(), WiFi.localIP())) {
     debugMsg("MDNS responder started as http://" + WiFi.hostname() + ".local");
     mdns.addService("http", "tcp", 80);
   }
 
-  loadNumberArrayPOSTMessage(postStep++); // 14
+  loadNumberArrayPOSTMessage(postStep++); // 13
   setPIRPullup(current_config.usePIRPullup);
 
   // initialise the internal time (in case we don't find the time provider)
   nowMillis = millis();
 
-  loadNumberArrayPOSTMessage(postStep++); // 15
+  loadNumberArrayPOSTMessage(postStep++); // 14
   testRTCTimeProvider();
   if (useRTC) {
     getRTCTime(true);
@@ -526,7 +526,7 @@ void setup()
   // don't blank anything right now
   blanked = false;
   setTubesAndLEDSBlankMode();
-  loadNumberArrayPOSTMessage(postStep++); // 16
+  loadNumberArrayPOSTMessage(postStep++); // 15
 
   // mark that we have done the EEPROM setup
   current_config.testMode = false;
@@ -534,7 +534,7 @@ void setup()
 
   debugMsg("Exit startup in 1 second");
   spiffs.getStatsFromSpiffs(&current_stats);
-  loadNumberArrayPOSTMessage(postStep++); // 17
+  loadNumberArrayPOSTMessage(postStep++); // 16
   ledManager.setDayOfWeek(weekday());
   delay(1000);
 }
