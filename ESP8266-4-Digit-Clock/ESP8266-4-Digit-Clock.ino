@@ -1774,10 +1774,9 @@ void loadNumberArrayPOSTMessage(int postValue) {
 }
 
 // ************************************************************
-// Do a single complete display, including any fading and
-// dimming requested. Performs the display loop
-// DIGIT_DISPLAY_COUNT times for each digit, with no delays.
-// This is the heart of the display processing!
+// Prepare a single complete display, including any fading and
+// dimming requested. Schedules the display into the digit
+// Buffer which will be processed by the interrupt routine
 // ************************************************************
 void outputDisplay() {
   int tmpDispType;
