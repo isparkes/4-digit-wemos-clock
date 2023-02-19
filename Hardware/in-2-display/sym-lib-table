@@ -1,7 +1,2 @@
 (sym_lib_table
-  (lib (name 4DigitIN12Display-rescue)(type Legacy)(uri ${KIPRJMOD}/4DigitIN12Display-rescue.lib)(options "")(descr ""))
-  (lib (name 4DigitIN12-cache)(type Legacy)(uri ${KIPRJMOD}/4DigitIN12-cache.lib)(options "")(descr ""))
-  (lib (name 4DigitIN12-rescue)(type Legacy)(uri ${KIPRJMOD}/4DigitIN12-rescue.lib)(options "")(descr ""))
-  (lib (name russian-nixies)(type Legacy)(uri /home/ian/Dropbox/Shared/Nixie/KiCAD/lbr/russian-nixies.lib)(options "")(descr ""))
-  (lib (name 4DigitIN2Display-rescue)(type Legacy)(uri ${KIPRJMOD}/4DigitIN2Display-rescue.lib)(options "")(descr ""))
 )
