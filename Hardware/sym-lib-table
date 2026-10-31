@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "4DigitIN12Main-rescue")(type "KiCad")(uri "${KIPRJMOD}/4DigitIN12Main-rescue.kicad_sym")(options "")(descr ""))
+)
