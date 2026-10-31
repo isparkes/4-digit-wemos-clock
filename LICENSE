@@ -1,0 +1,118 @@
+ESP8266 4-Digit Nixie Clock — Non-Commercial License
+Version 1.0
+
+Copyright (c) 2018-2026 Ian Sparkes. All rights reserved.
+
+This licence covers everything in this repository, including but not limited to
+the firmware source code in `Software/` and the hardware design files
+(schematics, PCB layouts, symbol and footprint libraries, bills of material and
+drawings) in `Hardware/`. In this licence these are together called "the Work".
+
+-------------------------------------------------------------------------------
+1. GRANT — NON-COMMERCIAL USE
+-------------------------------------------------------------------------------
+
+The copyright holder grants you a worldwide, royalty-free, non-exclusive,
+non-transferable licence to use, copy, modify, merge, publish and distribute the
+Work, and to manufacture, assemble and operate hardware embodying the Work,
+**for non-commercial purposes only**, subject to the conditions in section 3.
+
+This includes personal use, hobby and maker use, use in education and teaching,
+academic research, and use by not-for-profit organisations, provided no
+commercial advantage or monetary compensation arises from it.
+
+-------------------------------------------------------------------------------
+2. WHAT IS NOT GRANTED — COMMERCIAL USE
+-------------------------------------------------------------------------------
+
+"Commercial use" means any use that is primarily intended for or directed
+towards commercial advantage or monetary compensation. Without limiting that
+definition, the following require a separate commercial licence:
+
+  a) selling, offering for sale, hiring out or otherwise distributing for
+     payment any hardware built from, derived from or incorporating the Work,
+     whether as a kit, a bare board, an assembled unit or a finished product;
+  b) selling, licensing or distributing for payment any software derived from
+     the Work, or including it in a paid product or paid service;
+  c) using the Work, or hardware embodying it, in the course of a business to
+     provide goods or services to third parties for payment;
+  d) incorporating the Work into another product that is sold or licensed
+     commercially;
+  e) any use by a for-profit entity that is not plainly internal evaluation,
+     prototyping or research.
+
+Recovering no more than the actual cost of materials and shipping when sharing a
+board with another hobbyist, with no profit element, is not commercial use.
+
+Commercial licences are available from the author on reasonable terms. Contact:
+
+    Ian Sparkes
+    nixie@protonmail.ch
+    https://www.nixieclock.biz
+
+-------------------------------------------------------------------------------
+3. CONDITIONS
+-------------------------------------------------------------------------------
+
+Any copy or substantial portion of the Work that you distribute, and any
+derivative work you distribute, must:
+
+  a) retain this copyright notice, this licence text in full, and all copyright
+     and attribution notices contained in the source and design files;
+  b) carry a clear notice of any changes you have made; and
+  c) be distributed under this same licence, so that the non-commercial
+     restriction is preserved downstream.
+
+You may not apply any additional terms, technical measures or patent claims that
+restrict the rights granted by this licence to anyone else.
+
+-------------------------------------------------------------------------------
+4. TRADEMARKS AND ENDORSEMENT
+-------------------------------------------------------------------------------
+
+This licence grants no rights in the name of the author, "nixieclock.biz", or
+any trade name, trademark or logo of the author. You may not represent your
+derivative work as being endorsed by, approved by or originating from the author.
+
+-------------------------------------------------------------------------------
+5. THIRD-PARTY COMPONENTS
+-------------------------------------------------------------------------------
+
+The Work builds against third-party libraries (for example the ESP8266 Arduino
+core, ESPAsyncUDP, ArduinoJson and the WS2812B/NeoPixel drivers) and references
+third-party web assets. Those components are not part of the Work and remain
+subject to their own licences, which you must observe independently of this one.
+
+-------------------------------------------------------------------------------
+6. NO WARRANTY
+-------------------------------------------------------------------------------
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, SAFETY AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHOR OR
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, INJURY OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE WORK OR THE USE OF OR OTHER DEALINGS IN THE WORK.
+
+SAFETY NOTICE: this design operates at high voltage (typically 170-200 V DC for
+Nixie tubes) and may be mains-powered. Building, modifying or operating hardware
+based on the Work is done entirely at your own risk. You are responsible for
+complying with all applicable electrical safety, EMC and disposal regulations.
+
+-------------------------------------------------------------------------------
+7. TERMINATION
+-------------------------------------------------------------------------------
+
+Your rights under this licence terminate automatically if you breach it. They
+are reinstated if you cure the breach within 30 days of becoming aware of it,
+unless the copyright holder has notified you of the breach, in which case
+reinstatement requires the copyright holder's written agreement.
+
+-------------------------------------------------------------------------------
+8. GOVERNING LAW
+-------------------------------------------------------------------------------
+
+This licence is governed by the laws of the Federal Republic of Germany,
+excluding its conflict-of-law rules. If any provision is held unenforceable, the
+remainder stays in force and the unenforceable provision is to be read as
+narrowly as necessary to make it enforceable.

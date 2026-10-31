@@ -1,3 +1,12 @@
+//**********************************************************************************
+//* ESP8266 4-Digit Nixie Clock                                                    *
+//* Copyright (c) 2018-2026 Ian Sparkes. All rights reserved.                      *
+//*                                                                                *
+//* Free for non-commercial use. Commercial use needs a licence from the author.   *
+//* See the LICENSE file in the repository root for the full terms.                *
+//* Contact: nixie@protonmail.ch  |  https://www.nixieclock.biz                    *
+//**********************************************************************************
+
 #include "HtmlServer.h"
 
 ESP8266WebServer server(80);            // port 80
@@ -198,7 +207,12 @@ String getFormFoot() {
 }
 
 String getHTMLFoot() {
-  return "</body></html>";
+  String result = "<div class=\"container\"><hr/><p class=\"text-center text-muted\"><small>";
+  result += "&copy; 2018-2026 Ian Sparkes &middot; Free for non-commercial use &middot; ";
+  result += "<a href=\"https://www.nixieclock.biz\">nixieclock.biz</a>";
+  result += "</small></p></div>";
+  result += "</body></html>";
+  return result;
 }
 
 String getRadioGroupHeader(String header) {

@@ -1,0 +1,17 @@
+ESP8266 4-Digit Nixie Clock — Hardware Design
+Copyright (c) 2018-2026 Ian Sparkes. All rights reserved.
+
+All files in this directory — the KiCad schematic, PCB layout, symbol and
+footprint libraries, netlists, bills of material and drawings — are part of the
+hardware design of the 4-Digit IN-12 Nixie clock main board.
+
+Free for non-commercial use. Selling boards, kits or finished clocks built from
+this design, or using it in the course of a business, requires a commercial
+licence from the author.
+
+See the LICENSE file in the root of this repository for the full terms.
+
+Contact: Ian Sparkes, nixie@protonmail.ch, https://www.nixieclock.biz
+
+SAFETY: this board carries high voltage (typically 170-200 V DC). Build and
+operate it entirely at your own risk. No warranty of any kind is given.

@@ -1,4 +1,13 @@
 //**********************************************************************************
+//* ESP8266 4-Digit Nixie Clock                                                    *
+//* Copyright (c) 2018-2026 Ian Sparkes. All rights reserved.                      *
+//*                                                                                *
+//* Free for non-commercial use. Commercial use needs a licence from the author.   *
+//* See the LICENSE file in the repository root for the full terms.                *
+//* Contact: nixie@protonmail.ch  |  https://www.nixieclock.biz                    *
+//**********************************************************************************
+
+//**********************************************************************************
 //* Main code for an ESP8266 based Nixie/VFD clock. Features:                      *
 //*  - WiFi Clock configuration interface                                          *
 //*  - Real Time Clock interface for DS1307+                                       *
