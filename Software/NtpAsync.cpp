@@ -111,7 +111,7 @@ String NtpAsync::getLastTimeFromServer() {
 // see if the NTP we got is still to be condsidered valid
 // ************************************************************
 bool NtpAsync::ntpTimeValid(unsigned long nowMillis) {
-  return _lastUpdateFromServer != 0 && ((nowMillis - _lastUpdateFromServer) < (2000 * _ntpUpdateInterval));
+  return _lastUpdateFromServer != 0 && ((nowMillis - _lastUpdateFromServer) < ((unsigned long)2000 * _ntpUpdateInterval));
 }
 
 // ************************************************************
@@ -207,7 +207,9 @@ void NtpAsync::getTimeFromNTP() {
       debugMsg("success round trip " + String(done - _ntpStarted) + " ms");
       unsigned long t = secsSince1900 - 2208988800UL;                     // Subtract 70 years to get seconds since 1970
       uint16_t ms = fraction / 4294967UL;                                 // Turn 32 bit fraction into ms by dividing by 2^32 / 1000
+
       unsigned long measured_at = done - ((done - _ntpStarted) / 2) - ms;  // Assume symmetric network latency and return when we think the whole second was.
+      debugMsg("Time roundtrip offset " + String(measured_at) + " ms");
 
       _lastUpdateFromServer = done;
 
