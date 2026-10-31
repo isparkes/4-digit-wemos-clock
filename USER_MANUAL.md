@@ -393,7 +393,8 @@ So `format=6655` shows the first two tubes at full brightness and the last two b
 
 Once the clock is on your network, new firmware can be uploaded without a USB cable.
 
-1. In the Arduino IDE, use *Sketch → Export compiled Binary* to produce a `.bin` file.
+1. Build the firmware with `pio run`. The `.bin` file is written to
+   `.pio/build/d1_mini/firmware.bin`.
 2. Browse to `http://<clock-ip>/update`.
 3. Log in with user name **`admin`** and password **`update`** — note these are separate from
    the normal web password.

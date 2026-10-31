@@ -11,7 +11,7 @@
 #define SPIFFS_H
 
 #include <FS.h>
-#include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson (bblanchon 5.13.2)
+#include <ArduinoJson.h>        // bblanchon/ArduinoJson (^5.13.2 - the v6/v7 API differs)
 
 #include "ClockDefs.h"
 

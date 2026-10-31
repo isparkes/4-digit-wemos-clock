@@ -11,7 +11,7 @@
 #define ledmanager_h
 
 #include "Arduino.h"
-#include <NeoPixelBus.h>        // https://github.com/Makuna/NeoPixelBus (Makuna 2.3.4)
+#include <NeoPixelBus.h>        // makuna/NeoPixelBus (^2.7.3)
 #include "SPIFFS.h"
 
 extern byte numberArray[];

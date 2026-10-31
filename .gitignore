@@ -1,0 +1,15 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# VS Code / editors
+.vscode/
+!.vscode/extensions.json
+*.swp
+*~
+
+# macOS
+.DS_Store

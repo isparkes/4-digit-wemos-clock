@@ -16,6 +16,7 @@ button menu, the web interface and troubleshooting.
 |---|---|
 | [`Software`](Software) | The Arduino sketch and all firmware sources. This is what the rest of this README describes. |
 | `Hardware` | KiCad schematic, PCB and footprint libraries for the main board. Not covered here. |
+| [`platformio.ini`](platformio.ini) | The build configuration — board settings, pinned library versions and the upload targets. |
 
 ## Firmware highlights
 
@@ -46,12 +47,12 @@ button menu, the web interface and troubleshooting.
 
 ## Source layout
 
-All sources live in [`Software`](Software). The Arduino sketch is
-`ESP8266-4-Digit-Clock.ino`; the rest are compiled alongside it as part of the same sketch.
+All sources live in [`Software`](Software), which is the PlatformIO `src_dir`. The main
+translation unit is `main.cpp`; the rest are compiled alongside it.
 
 | File | Responsibility |
 |---|---|
-| `ESP8266-4-Digit-Clock.ino` | Display ISR and multiplex scheduling, `setup()`/`loop()`, the button menu state machine, blanking logic, LDR dimming, RTC access, and all web page handlers. |
+| `main.cpp` | Display ISR and multiplex scheduling, `setup()`/`loop()`, the button menu state machine, blanking logic, LDR dimming, RTC access, and all web page handlers. |
 | `ClockDefs.h` | Pin assignments, software version, and every configuration constant: mode numbers, limits and defaults. |
 | `DisplayDefs.h` | Per-digit display types (`BLANKED`/`DIMMED`/`NORMAL`/`FADE`/`SCROLL`/`BLINK`/`BRIGHT`), separator LED modes, status LED modes, and the cathode/anode bit mapping for the shift register. |
 | `Globals.h` | Component instances and the shared mutable state (display buffers, blanking flags, LDR state, usage counters). |
@@ -67,49 +68,71 @@ All sources live in [`Software`](Software). The Arduino sketch is
 
 ## Building and flashing
 
-The project is an Arduino IDE sketch (no PlatformIO project file). Open
-`Software/ESP8266-4-Digit-Clock.ino`.
+The project is a [PlatformIO](https://platformio.org/) project. The configuration is in
+[`platformio.ini`](platformio.ini) at the repository root, with `src_dir` pointing at
+[`Software`](Software), so the firmware and the hardware design share one repository.
 
-**Board support** — add the ESP8266 board manager URL:
+Open the repository root in VS Code with the PlatformIO IDE extension, or use the CLI:
 
+```sh
+pio run                     # build
+pio run -t upload           # build and flash over USB
+pio device monitor          # serial console at 115200 baud
+pio run -t clean            # discard build output
 ```
-http://arduino.esp8266.com/stable/package_esp8266com_index.json
-```
 
-**Board settings** (as recorded in the sketch header):
+Everything else — the ESP8266 platform, the toolchain and all five libraries — is downloaded
+on the first build. Nothing needs installing by hand.
 
-| Setting | Value |
-|---|---|
-| Board | LOLIN (Wemos) D1 R2 & mini |
-| CPU frequency | 160 MHz |
-| Flash frequency | 80 MHz |
-| Flash size | 4M (1M SPIFFS) |
-| lwIP variant | v2 Higher Bandwidth (no features) |
-| Upload speed | 921600 |
-| Erase flash | Only sketch |
+**Board settings** are set in `platformio.ini` and reproduce the Arduino IDE settings the
+firmware was developed with:
 
-A SPIFFS partition is required — the configuration is stored there. Keep "Erase flash: Only
-sketch" so that re-flashing does not wipe the saved configuration.
+| Setting | Value | Set by |
+|---|---|---|
+| Board | LOLIN (Wemos) D1 R2 & mini | `board = d1_mini` |
+| CPU frequency | 160 MHz | `board_build.f_cpu` |
+| Flash frequency | 80 MHz | `board_build.f_flash` |
+| Flash layout | 4M flash, 1M SPIFFS | `board_build.ldscript = eagle.flash.4m1m.ld` |
+| lwIP variant | v2 Higher Bandwidth (no features) | `PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH` |
+| Upload speed | 921600 | `upload_speed` |
 
-**Libraries** — install these at the versions the code was built against:
+A SPIFFS partition is required — the configuration is stored there. `pio run -t upload` writes
+only the firmware and leaves the filesystem alone, so a re-flash keeps the saved configuration.
+There is no `data` directory to upload: `/config.json` and `/stats.json` are written by the
+firmware itself at runtime.
+
+**Libraries** are pinned in `platformio.ini` and fetched automatically:
 
 | Library | Version | Source |
 |---|---|---|
-| Time (`TimeLib`) | Margolis 1.5.0 | http://playground.arduino.cc/code/time |
-| NeoPixelBus | Makuna 2.3.4 | https://github.com/Makuna/NeoPixelBus |
-| WiFiManager | tzapu 0.14.0 | https://github.com/tzapu/WiFiManager |
-| ArduinoJson | bblanchon 5.13.2 | https://github.com/bblanchon/ArduinoJson |
-| ESPAsyncUDP | master HEAD | https://github.com/me-no-dev/ESPAsyncUDP |
+| Time (`TimeLib`) | `^1.6.1` | `paulstoffregen/Time` |
+| NeoPixelBus | `^2.7.3` | `makuna/NeoPixelBus` |
+| WiFiManager | `^0.16.0` | `tzapu/WiFiManager` |
+| ArduinoJson | `^5.13.2` | `bblanchon/ArduinoJson` |
+| ESPAsyncUDP | commit `697c75a0` | `github.com/me-no-dev/ESPAsyncUDP` |
 
-ArduinoJson 5.x and WiFiManager 0.x are *not* source compatible with their 6.x/2.x successors —
-the sketch will not compile against the newer major versions without changes.
+ArduinoJson is deliberately held at 5.x: the 6.x and 7.x APIs are not source compatible and
+`Software/SPIFFS.cpp` is written against 5.x. ESPAsyncUDP is unmaintained and absent from the
+PlatformIO registry, so it is pinned to the exact commit the firmware was built against rather
+than to a moving `master`.
 
-After the first flash over USB, further updates can be pushed over the air — see
-[Over-the-air updates](USER_MANUAL.md#13-over-the-air-firmware-updates) in the user manual.
+**Over the air** — after the first USB flash, updates can be pushed to a running clock through
+the `/update` endpoint it serves:
+
+```sh
+CLOCK_HOST=192.168.1.42 pio run -e d1_mini_ota -t upload
+```
+
+`CLOCK_HOST` is the clock's IP address, or its mDNS name (shown as "Clock Name" on its web
+page) with `.local` appended. This is a plain HTTP form upload to `ESP8266HTTPUpdateServer`,
+not the ArduinoOTA protocol, so the `d1_mini_ota` environment uses a `curl` upload command
+rather than PlatformIO's `espota`. See
+[Over-the-air updates](USER_MANUAL.md#13-over-the-air-firmware-updates) in the user manual for
+the equivalent through the web interface.
 
 ## Compile-time feature flags
 
-Near the top of `ESP8266-4-Digit-Clock.ino`. Append `_OFF` to the name to disable a feature;
+Near the top of `main.cpp`. Append `_OFF` to the name to disable a feature;
 `LEDManager.h` carries its own flags for the LED chain layout.
 
 | Flag | Default | Effect |

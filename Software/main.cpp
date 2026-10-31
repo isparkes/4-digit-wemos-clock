@@ -20,31 +20,32 @@
 //*  - RGB back light management using individually addressable WS2812B            *
 //*  - PIR/motion sensor to turn off display when no one is around                 *
 //*                                                                                *
-//*   Program with following settings (status line / IDE):                         *
+//*   Built with PlatformIO. The board settings below are configured in            *
+//*   platformio.ini at the repository root, not in an IDE menu:                   *
 //*                                                                                *
-//*    Board: Wemos D1 R2 & Mini / LOLIN (Wemos) D1 R2 & mini                      *
-//*    Flash: 80MHz,                                                               *
-//*    CPU: 160MHz,                                                                *
-//*    Upload speed: 921600,                                                       *
-//*    Flash size: 4M (1M SPIFFS)                                                  *
+//*    Board: LOLIN (Wemos) D1 R2 & mini   (board = d1_mini)                       *
+//*    Flash: 80MHz, CPU: 160MHz, Upload speed: 921600                             *
+//*    Flash size: 4M (1M SPIFFS)          (eagle.flash.4m1m.ld)                   *
 //*    lwIP Variant: v2 Higher Bandwidth (no features)                             *
-//*    Erase Flash: Only sketch       ,                                            *
+//*                                                                                *
+//*    pio run              - build                                                *
+//*    pio run -t upload    - build and flash over USB                             *
+//*    pio device monitor   - serial console at 115200 baud                        *
 //*                                                                                *
 //*  nixie@protonmail.ch                                                           *
-//*                                                                                *
-//*  board def: http://arduino.esp8266.com/stable/package_esp8266com_index.json    *
 //*                                                                                *
 //**********************************************************************************
 //**********************************************************************************
 // Standard Libraries
+#include <Arduino.h>
 #include <Wire.h>
 
-// Clock specific libraries, install these with "Sketch -> Include Library -> Add .ZIP library
-// using the ZIP files in the "libraries" directory
-#include <TimeLib.h>            // http://playground.arduino.cc/code/time (Margolis 1.5.0)
-#include <NeoPixelBus.h>        // https://github.com/Makuna/NeoPixelBus (Makuna 2.3.4)
-#include <WiFiManager.h>        // https://github.com/tzapu/WiFiManager  (tzapu 0.14.0)
-#include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson (bblanchon 5.13.2)
+// Clock specific libraries. Versions are pinned in platformio.ini and fetched
+// automatically on the first build - nothing needs installing by hand.
+#include <TimeLib.h>            // paulstoffregen/Time (^1.6.1)
+#include <NeoPixelBus.h>        // makuna/NeoPixelBus (^2.7.3)
+#include <WiFiManager.h>        // tzapu/WiFiManager (^0.16.0)
+#include <ArduinoJson.h>        // bblanchon/ArduinoJson (^5.13.2 - the v6/v7 API differs)
 
 // Other parts of the code, broken out for clarity
 #include "Globals.h"
@@ -103,6 +104,96 @@ byte valueBufferPrev[DIGIT_COUNT] = { 0, 0, 0, 0};
 byte ptCache[] = {20 | NEXT_DIGIT, 0, 0};
 byte na = 0;
 byte cna = 0;
+
+//**********************************************************************************
+//* Forward declarations                                                           *
+//*                                                                                *
+//* The Arduino IDE generated these automatically from the .ino file. Under         *
+//* PlatformIO this is a plain C++ translation unit, so they are declared here.     *
+//**********************************************************************************
+ICACHE_RAM_ATTR void digitOn(byte digit, byte value);
+ICACHE_RAM_ATTR void digitOff(byte digit, byte value);
+ICACHE_RAM_ATTR void displayUpdate();
+void setDigit(byte digit, byte value, byte currValue, byte dimFactor, byte switchTime, bool blanked);
+void performOncePerSecondProcessing();
+void performOncePerMinuteProcessing();
+void performOncePerHourProcessing();
+void performOncePerDayProcessing();
+void setLeds();
+boolean checkPIR(unsigned long nowMillis);
+boolean checkPIRInstalled();
+void setNextMode(int displayMode);
+void processCurrentMode(int displayMode);
+void loadNumberArrayTime();
+void loadNumberArrayMinsSecs();
+void loadNumberArrayDayMonth();
+void loadNumberArrayYear();
+void loadNumberArrayLDR();
+void loadNumberArrayTestDigits();
+void loadNumberArrayConfInt(int confValue, byte mode);
+void loadNumberArrayConfIntWide(int confValue);
+void loadNumberArrayConfMode(byte mode);
+void loadNumberArrayConfBool(boolean confValue, byte mode);
+void loadNumberArrayIP(byte byte1);
+void loadNumberArraySameValue(byte val);
+void loadDisplaySetValueType();
+void loadNumberArrayPOSTMessage(int postValue);
+void outputDisplay();
+byte getSwitchTime(byte offCount, byte fadeState, byte fadeSteps);
+ICACHE_RAM_ATTR void ledsOn();
+ICACHE_RAM_ATTR void ledsOff();
+void applyBlanking();
+void allNormal(boolean blanking);
+void allBright();
+void highlightMonthsDateFormat();
+void highlightDaysDateFormat();
+void highlight0and1();
+void highlight2and3();
+void allNormal();
+void displayConfig();
+void displayConfigWide();
+void displayConfig3();
+void displayConfig2();
+void allBlanked();
+void confBlink();
+void showDisplayIP();
+void resetSecond();
+void incSecond();
+void incMins();
+void incHours();
+void incDays();
+void incMonths();
+void incYears();
+void setTimeFromServer(String timeString);
+boolean checkBlanking();
+String getPIRStateDisplay();
+boolean getHoursBlanked();
+void setTubesAndLEDSBlankMode();
+void setDiagnosticLED(byte stepNumber, byte state);
+void setPIRPullup(boolean newState);
+void setNewNextMode(int newNextMode);
+void newTimeUpdateReceived();
+String getRTCTime(boolean setInternalTime);
+void testRTCTimeProvider();
+void setRTCTime();
+int getDimmingFromLDR();
+void factoryReset();
+void saveToSpiffsIfChanged(boolean changed);
+void rootPageHandler();
+void timeServerPageHandler();
+void resetPageHandler();
+void clockConfigPageHandler();
+void setDisplayValuePageHandler();
+void utilityPageHandler();
+void resetWiFiPageHandler();
+void ntpUpdatePageHandler();
+void factoryResetPageHandler();
+void handleNotFound();
+void localCSSHandler();
+boolean getIsConnected();
+void configModeCallback(WiFiManager *myWiFiManager);
+void reconnectDroppedConnection();
+void setServerPageHandlers();
 
 // ************************************************************
 // Set a digit with the given value, for a given digit
@@ -404,9 +495,6 @@ void setup()
     lastCheckMillis = millis();
 
     boolean inLoop = true;
-
-    // We don't want to stay in test mode forever
-    long startTestMode = lastCheckMillis;
 
     while (inLoop) {
       // Otherwise we get SOFT WDT
@@ -777,15 +865,6 @@ void setLeds()
   } else {
     secsDelta = 1000 - (nowMillis - lastCheckMillis);
   }
-
-  // Fixed backlight dim setting
-  float fixedDim = (float) current_config.backlightDimFactor / (float) 100;
-  
-  // calculate the PWM factor, goes between minDim% and 100%
-  float dimFactor = (float) ldrValue / (float) COUNTS_PER_DIGIT * fixedDim;
-  
-  // Calculate the brightness factor based on the "pulse"
-  float pwmFactor = (float) secsDelta / (float) 1000.0;
 
   if (blankSeparators) {
     led1State = false;
@@ -1230,7 +1309,7 @@ void processCurrentMode(int displayMode) {
             }
 
             // initialise the slots mode
-            boolean msgDisplaying;
+            boolean msgDisplaying = false;
             switch (current_config.slotsMode) {
               case SLOTS_MODE_1M_SCR_SCR:
                 {
@@ -1790,9 +1869,6 @@ void loadNumberArrayPOSTMessage(int postValue) {
 void outputDisplay() {
   int tmpDispType;
 
-  // used to blank all leading digits if 0
-  boolean leadingZeros = true;
-
   for ( int i = 0 ; i < DIGIT_COUNT ; i ++ ) {
     tmpDispType = displayType[i]; 
     if (blankTubes) {
@@ -2252,6 +2328,9 @@ boolean checkBlanking() {
         return true;
     }
   }
+
+  // Not in time mode, or an unrecognised blanking setting: show the display.
+  return false;
 }
 
 // ************************************************************
@@ -2396,6 +2475,9 @@ String getRTCTime(boolean setInternalTime) {
 
     return returnValue;
   }
+
+  // No RTC fitted. The only caller that uses the result guards on useRTC.
+  return "";
 }
 
 // ************************************************************
@@ -3126,7 +3208,6 @@ void clockConfigPageHandler() {
 // Send a value to the clock for display
 // ************************************************************
 void setDisplayValuePageHandler() {
-  byte timeValue = 0xff;
   boolean valueValid = false;
   boolean timeValid = false;
   boolean formatValid = false;

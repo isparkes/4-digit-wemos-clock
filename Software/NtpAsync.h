@@ -12,7 +12,7 @@
 
 #include <memory>
 #include <Arduino.h>
-#include <ESPAsyncUDP.h>        // https://github.com/me-no-dev/ESPAsyncUDP (master HEAD)
+#include <ESPAsyncUDP.h>        // me-no-dev/ESPAsyncUDP (pinned to 697c75a0)
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>          //https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer
 
